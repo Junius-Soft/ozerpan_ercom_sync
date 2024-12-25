@@ -4,6 +4,7 @@ from typing import Dict
 import frappe
 from frappe import _
 
+from ozerpan_ercom_sync.custom_api.file_upload.dst_file_upload import process_dst_file
 from ozerpan_ercom_sync.custom_api.file_upload.mly_file_upload import (
     process_mly_file,
 )
@@ -64,6 +65,9 @@ def process_file_by_category(file: Dict, logger: logging.Logger) -> None:
     if file_category.startswith("mly"):
         logger.info("MLY file detected.")
         process_mly_file(file, logger)
-    if file_category.startswith("opt"):
+    elif file_category.startswith("opt"):
         logger.info("OPT file detected.")
         process_opt_file(file, logger)
+    elif file_category.startswith("dst"):
+        logger.info("DST file detected.")
+        process_dst_file(file, logger)
