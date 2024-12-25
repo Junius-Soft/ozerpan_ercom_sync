@@ -1,10 +1,10 @@
 import logging
 import re
+from typing import Dict
 
 import frappe
 import pandas as pd
 from frappe import _
-from typing_extensions import Dict
 
 from ozerpan_ercom_sync.custom_api.utils import get_float_value
 from ozerpan_ercom_sync.utils import get_mysql_connection
