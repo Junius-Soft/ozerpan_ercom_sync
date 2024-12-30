@@ -1,0 +1,66 @@
+{
+ "actions": [],
+ "allow_import": 1,
+ "allow_rename": 1,
+ "autoname": "field:stock_code",
+ "creation": "2024-12-26 10:59:01.341863",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "section_break_1orm",
+  "stock_code",
+  "description",
+  "group"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_break_1orm",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "stock_code",
+   "fieldtype": "Data",
+   "label": "Stock Code",
+   "unique": 1
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Description"
+  },
+  {
+   "fieldname": "group",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Group",
+   "options": "\nKASA\nA\u00c7ILI KASA\nS\u00dcRME KASA\nKEMERL\u0130 KASA\nKANAT\nA\u00c7ILI KANAT\nS\u00dcRME KANAT\nKEMERL\u0130 KANAT\nKAYIT\nA\u00c7ILI ORTAKAYIT\nS\u00dcRME ORTAKAYIT\nKEMERL\u0130 ORTAKAYIT"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2024-12-27 09:24:29.220006",
+ "modified_by": "Administrator",
+ "module": "Ozerpan Ercom Sync",
+ "name": "Profile Type",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
