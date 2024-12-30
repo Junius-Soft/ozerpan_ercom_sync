@@ -5,6 +5,7 @@ import frappe
 import pandas as pd
 from frappe import _
 
+from ozerpan_ercom_sync.custom_api.file_upload import mly_helper
 from ozerpan_ercom_sync.custom_api.utils import (
     get_float_value,
     show_progress,
@@ -139,6 +140,10 @@ def process_single_sheet(
         logger.warning(f"Empty sheet found: {sheet}")
         return None
 
+    main_profiles_idx = df[df["Stok Kodu"] == "Ana Profiller Toplamı"].index[0]
+    main_profiles = df.loc[:main_profiles_idx].copy()
+    # TODO: Send it to the create_bom func
+
     tail = df.tail(3).copy()
     filtered_df = df[df["Stok Kodu"].str.startswith("#", na=False)].copy()
 
@@ -148,7 +153,9 @@ def process_single_sheet(
     logger.info(f"Processing item: {item_code}")
 
     item = create_item(item_code, total_price, poz_data, logger)
-    bom_result = create_bom(item.name, poz_data.get("ADET"), filtered_df, logger)
+    bom_result = create_bom(
+        item.name, poz_data.get("ADET"), main_profiles, filtered_df, logger
+    )
 
     return {
         "item_code": item.item_code,
@@ -188,7 +195,11 @@ def get_poz_data(order_no: str, logger: logging.Logger) -> List[Tuple]:
 
 
 def create_bom(
-    item_name: str, qty: float, df: pd.DataFrame, logger: logging.Logger
+    item_name: str,
+    qty: float,
+    main_profiles: pd.DataFrame,
+    df: pd.DataFrame,
+    logger: logging.Logger,
 ) -> Dict:
     """Create Bill of Materials document"""
     company = frappe.defaults.get_user_default("Company")
@@ -208,6 +219,16 @@ def create_bom(
         item = frappe.get_doc("Item", stock_code)
         if not item.custom_kit:
             items_table.append(create_bom_item(row, item))
+
+    profile_group = []
+    for _, row in df.iterrows():
+        stock_code = row["Stok Kodu"].lstrip("#")
+        if not frappe.db.exists("Profile Type", stock_code):
+            raise ValueError(f"No such Profile Type: {stock_code}")
+        pt = frappe.get_doc("Profile Type", stock_code)
+        profile_group.append(pt.get("group"))
+
+    add_operations_into_bom(bom, mly_helper.get_middle_operations(profile_group))
 
     bom.set("items", items_table)
     bom.save(ignore_permissions=True)
@@ -295,3 +316,21 @@ def get_tax_account():
         return account
 
     return frappe.get_doc("Account", account_filters)
+
+
+def add_operations_into_bom(bom, middle_operations):
+    fixed_starting_operations = ["Profil Temin", "Sac Kesim"]
+    fixed_ending_operations = ["Çıta", "Kalite", "Sevkiyat"]
+    full_operations = (
+        fixed_starting_operations + middle_operations + fixed_ending_operations
+    )
+
+    operation_items = []
+    for operation_name in full_operations:
+        o = frappe.get_doc("Operation", operation_name)
+        operation_items.append(
+            {"operation": o.name, "workstation": o.workstation, "time_in_mins": 10}
+        )
+
+    bom.with_operations = 1
+    bom.set("operations", operation_items)
