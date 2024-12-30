@@ -141,8 +141,7 @@ def process_single_sheet(
         return None
 
     main_profiles_idx = df[df["Stok Kodu"] == "Ana Profiller Toplamı"].index[0]
-    main_profiles = df.loc[:main_profiles_idx].copy()
-    # TODO: Send it to the create_bom func
+    main_profiles = df.loc[: main_profiles_idx - 1].copy()
 
     tail = df.tail(3).copy()
     filtered_df = df[df["Stok Kodu"].str.startswith("#", na=False)].copy()
@@ -210,23 +209,23 @@ def create_bom(
     bom.rm_cost_as_per = "Price List"
     bom.buying_price_list = "Standard Selling"
 
+    profile_group = []
+    for idx, row in main_profiles.iterrows():
+        stock_code = row["Stok Kodu"].lstrip("#")
+        if not frappe.db.exists("Profile Type", stock_code):
+            raise ValueError(f"Profile Type not found: {stock_code}")
+        pt = frappe.get_doc("Profile Type", stock_code)
+        profile_group.append(pt.get("group"))
+
     items_table = []
     for _, row in df.iterrows():
         stock_code = row["Stok Kodu"].lstrip("#")
         if not frappe.db.exists("Item", stock_code):
-            raise ValueError(f"No such item: {stock_code}")
+            raise ValueError(f"Item not found: {stock_code}")
 
         item = frappe.get_doc("Item", stock_code)
         if not item.custom_kit:
             items_table.append(create_bom_item(row, item))
-
-    profile_group = []
-    for _, row in df.iterrows():
-        stock_code = row["Stok Kodu"].lstrip("#")
-        if not frappe.db.exists("Profile Type", stock_code):
-            raise ValueError(f"No such Profile Type: {stock_code}")
-        pt = frappe.get_doc("Profile Type", stock_code)
-        profile_group.append(pt.get("group"))
 
     add_operations_into_bom(bom, mly_helper.get_middle_operations(profile_group))
 
