@@ -14,9 +14,6 @@ def process_opt_file(file: Dict, logger: logging.Logger) -> None:
     """Process OPT type Excel file"""
     logger.info("Processing OPT file...")
     try:
-        print("\n\n\n")
-        print(file)
-        print("\n\n\n")
         file_path = file.get("path")
         df = pd.read_excel(file_path)
         if df.empty:
@@ -94,11 +91,13 @@ def create_opt_genel_doc(
         items_data = []
         for idx, row in df.iterrows():
             stock_code = str(row["Stok Kodu"]).strip()
-            item_code = frappe.db.exists("Item", {stock_code})
+            item_code = frappe.db.exists("Item", {"item_code": stock_code})
 
             if not item_code:
                 logger.error(f"Item not found for stock code: {stock_code}")
                 frappe.throw(f"Item not found for stock code: {stock_code}")
+
+
 
             items_data.append(
                 {

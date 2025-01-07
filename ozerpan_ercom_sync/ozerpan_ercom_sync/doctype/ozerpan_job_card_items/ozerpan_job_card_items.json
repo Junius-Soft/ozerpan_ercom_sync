@@ -1,0 +1,49 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-01-05 11:05:23.872095",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "section_break_kfqa",
+  "model",
+  "processed_qty",
+  "completed"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_break_kfqa",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "model",
+   "fieldtype": "Select",
+   "label": "Model",
+   "options": "\nKASA\nA\u00c7ILI KASA\nS\u00dcRME KASA\nKEMERL\u0130 KASA\nKANAT\nA\u00c7ILI KANAT\nS\u00dcRME KANAT\nKEMERL\u0130 KANAT\nKAYIT\nA\u00c7ILI ORTAKAYIT\nS\u00dcRME ORTAKAYIT\nKEMERL\u0130 ORTAKAYIT"
+  },
+  {
+   "fieldname": "processed_qty",
+   "fieldtype": "Int",
+   "label": "Processed Qty"
+  },
+  {
+   "default": "0",
+   "fieldname": "completed",
+   "fieldtype": "Check",
+   "label": "Completed"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2025-01-05 11:21:02.241308",
+ "modified_by": "Administrator",
+ "module": "Ozerpan Ercom Sync",
+ "name": "Ozerpan Job Card Items",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

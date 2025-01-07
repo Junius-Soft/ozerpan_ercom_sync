@@ -223,7 +223,6 @@ def create_sales_order(data: dict, placeholder_item: str, logger) -> None:
         logger.info(f"Sales Order {order_no} already exists")
         return
 
-    # TODO: Get customer by carikod
     if not frappe.db.exists("Customer", {"custom_current_code": current_code}):
         error_msg = f"Customer ({customer_name}-{current_code}) does not exist for order ({order_no})"
         logger.error(error_msg)
