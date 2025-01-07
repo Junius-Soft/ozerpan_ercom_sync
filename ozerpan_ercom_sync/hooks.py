@@ -148,7 +148,13 @@ doctype_list_js = {
 doc_events = {
     "Sales Order": {
         "validate": "ozerpan_ercom_sync.sales_order_hooks.validate.validate",
-    }
+    },
+    "Work Order": {
+        "on_submit": "ozerpan_ercom_sync.work_order_hooks.on_submit.on_submit"
+    },
+    "Job Card": {
+        "after_insert": "ozerpan_ercom_sync.job_card_hooks.after_insert.after_insert"
+    },
     # 	"*": {
     # 		"on_update": "method",
     # 		"on_cancel": "method",

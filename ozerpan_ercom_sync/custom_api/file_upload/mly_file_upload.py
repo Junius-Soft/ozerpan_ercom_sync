@@ -248,6 +248,9 @@ def create_bom_item(row: pd.Series, item) -> Dict:
     item_qty = (
         round((amount / rate), 7) if rate != 0.0 else get_float_value(row.get("Miktar"))
     )
+    print("\n")
+    print(f"rate: {rate}\namount: {amount}\nitem_qty: {item_qty}")
+    print("\n")
 
     return {
         "item_code": item.get("item_code"),

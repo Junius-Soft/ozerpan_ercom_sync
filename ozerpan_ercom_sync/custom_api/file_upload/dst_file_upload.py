@@ -34,7 +34,7 @@ def process_dst_file(file: Dict, logger: logging.Logger) -> None:
 def process_row(row: pd.Series) -> Dict:
     """Process a single DataFrame row"""
     stock_code = str(row["STOK KODU"])
-    item_code = frappe.db.exists("Item", {stock_code})
+    item_code = frappe.db.exists("Item", {"item_code": stock_code})
 
     if not item_code:
         error_msg = f"Item not found for stock code: {stock_code}"

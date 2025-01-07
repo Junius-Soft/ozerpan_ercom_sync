@@ -3,7 +3,6 @@ import os
 from datetime import datetime
 
 import frappe
-from ozerpan_ercom_sync.utils import get_mysql_connection
 
 
 def get_float_value(value: str) -> float:
@@ -174,16 +173,17 @@ def show_progress(curr_count: int, max_count: int, title: str, desc: str):
     )
 
 
-
-def get_machine_number(opt_no: str, logger: logging.Logger) -> int:
+def get_machine_number(pool, opt_no: str, logger: logging.Logger) -> int:
     """Gets machine number from database for given opt number."""
-    with get_mysql_connection() as connection:
-        with connection.cursor() as cursor:
-            query = f"SELECT MAKINA FROM dbtes WHERE OTONO = '{opt_no}'"
-            cursor.execute(query)
-            machines = cursor.fetchall()
-            machine = machines[0] if machines else {}
-            return machine.get("MAKINA", 0)
+    query = """
+        SELECT MAKINA
+        FROM dbtes
+        WHERE OTONO = %(opt_no)s
+    """
+    params = {"opt_no": opt_no}
+    results = pool.execute_query(query, params)
+    machine = results[0] if results else {}
+    return machine.get("MAKINA", 0)
 
 
 def get_machine_name(machine_no: int) -> str:

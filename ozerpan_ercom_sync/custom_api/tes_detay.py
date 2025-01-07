@@ -1,8 +1,13 @@
 import frappe
 from frappe import _
 
-from ozerpan_ercom_sync.custom_api.utils import generate_logger, get_machine_name, get_machine_number
-from ozerpan_ercom_sync.utils import get_mysql_connection
+from ozerpan_ercom_sync.custom_api.utils import (
+    generate_logger,
+    get_machine_name,
+    get_machine_number,
+    show_progress,
+)
+from ozerpan_ercom_sync.db_pool import DatabaseConnectionPool
 
 
 @frappe.whitelist()
@@ -12,11 +17,19 @@ def sync_tes_detay():
 
     try:
         logger.info("Starting synchronizing TesDetay.")
-
-        data = get_tesdetay_data()
+        pool = DatabaseConnectionPool()
+        logger.info("Connection pool is initializing.")
+        data = get_tesdetay_data(pool)
+        data_len = len(data)
         synced_count = 0
 
-        for row in data:
+        for i, row in enumerate(data):
+            show_progress(
+                curr_count=i + 1,
+                max_count=data_len,
+                title="Updating TesDetay",
+                desc=_("Syncing TesDetay {0} of {1}").format(i + 1, data_len),
+            )
             if frappe.db.exists("TesDetay", {"sayac": row.get("SAYAC")}):
                 continue
 
@@ -77,7 +90,7 @@ def sync_tes_detay():
             for field, key in field_mappings.items():
                 setattr(td, field, row.get(key))
 
-            machine_no = get_machine_number(td.oto_no, logger)
+            machine_no = get_machine_number(pool, td.oto_no, logger)
             machine_name = get_machine_name(machine_no)
 
             td.makina_no = machine_name
@@ -93,19 +106,20 @@ def sync_tes_detay():
         error_message = f"Error during sync: {str(e)}"
         logger.error(error_message)
         frappe.throw(error_message)
+    finally:
+        pool.close_all()
+        logger.info("Connection pool is closed.")
 
 
-def get_tesdetay_data():
-    with get_mysql_connection() as connection:
-        with connection.cursor() as cursor:
-            query = """
-                SELECT *
-                FROM dbtesdetay
-                ORDER BY OTONO DESC
-                LIMIT 100
-            """
-            cursor.execute(query)
-            return cursor.fetchall()
+def get_tesdetay_data(pool):
+    query = """
+        SELECT *
+        FROM dbtesdetay
+        ORDER BY OTONO DESC
+        LIMIT 100
+    """
+    results = pool.execute_query(query)
+    return results
 
 
 def generate_barcode(araba_no, yer_no, stok_kodu, rc, model, olcu, eksen):
