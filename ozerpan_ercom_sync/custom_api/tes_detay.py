@@ -4,7 +4,6 @@ from frappe import _
 from ozerpan_ercom_sync.custom_api.utils import (
     generate_logger,
     get_machine_name,
-    get_machine_number,
     show_progress,
 )
 from ozerpan_ercom_sync.db_pool import DatabaseConnectionPool
@@ -90,8 +89,8 @@ def sync_tes_detay():
             for field, key in field_mappings.items():
                 setattr(td, field, row.get(key))
 
-            machine_no = get_machine_number(pool, td.oto_no, logger)
-            machine_name = get_machine_name(machine_no)
+            # machine_no = get_machine_number(pool, td.oto_no, logger)
+            machine_name = get_machine_name(row.get("MAKINA"))
 
             td.makina_no = machine_name
             td.barkod = barcode
@@ -114,12 +113,24 @@ def sync_tes_detay():
 def get_tesdetay_data(pool):
     query = """
         SELECT *
-        FROM dbtesdetay
-        ORDER BY OTONO DESC
-        LIMIT 100
+        FROM dbtesdetay td
+        LEFT JOIN dbtes t ON td.OTONO = t.OTONO
+        ORDER BY td.OTONO DESC
+        LIMIT 5000
     """
     results = pool.execute_query(query)
     return results
+
+
+# def get_tesdetay_data(pool):
+#     query = """
+#         SELECT *
+#         FROM dbtesdetay
+#         ORDER BY OTONO DESC
+#         LIMIT 100
+#     """
+#     results = pool.execute_query(query)
+#     return results
 
 
 def generate_barcode(araba_no, yer_no, stok_kodu, rc, model, olcu, eksen):
