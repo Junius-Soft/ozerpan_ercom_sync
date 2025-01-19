@@ -46,7 +46,8 @@
   "uretim_sayac",
   "makina_no",
   "sanal_adet",
-  "barkod"
+  "barkod",
+  "status"
  ],
  "fields": [
   {
@@ -56,11 +57,17 @@
   {
    "fieldname": "oto_no",
    "fieldtype": "Float",
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Oto No"
   },
   {
    "fieldname": "siparis_no",
    "fieldtype": "Data",
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Siparis No"
   },
   {
@@ -253,11 +260,20 @@
    "fieldname": "barkod",
    "fieldtype": "Data",
    "label": "Barkod"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Pending\nIn Progress\nCompleted"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2024-12-21 10:19:30.333228",
+ "modified": "2025-01-19 23:21:14.821858",
  "modified_by": "Administrator",
  "module": "Ozerpan Ercom Sync",
  "name": "TesDetay",

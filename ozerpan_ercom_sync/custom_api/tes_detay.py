@@ -83,17 +83,16 @@ def sync_tes_detay():
                 "sanal_adet": "SANALADET",
                 "aciklama": "ACIKLAMA",
                 "uretim_sayac": "URETIMSAYAC",
-                # "makina_no": "MAKINANO",
             }
 
             for field, key in field_mappings.items():
                 setattr(td, field, row.get(key))
 
-            # machine_no = get_machine_number(pool, td.oto_no, logger)
             machine_name = get_machine_name(row.get("MAKINA"))
 
             td.makina_no = machine_name
             td.barkod = barcode
+            td.status = "Pending"
             td.insert()
             synced_count += 1
             logger.info(f"Record {td.sayac} synchronized successfully")
