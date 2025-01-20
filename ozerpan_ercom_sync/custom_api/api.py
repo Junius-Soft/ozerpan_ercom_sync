@@ -1,31 +1,32 @@
 import frappe
 
-from ozerpan_ercom_sync.utils import get_mysql_connection
-
 
 @frappe.whitelist()
-def getData(barcode):
-    print("\n\n\n")
+def read_barcode(barcode: str, employee: str, operation: str):
+    print("\n\n\n-- Read Barcode --")
+
     td = frappe.get_doc("TesDetay", {"barkod": barcode})
-    print(td.siparis_no)
-    print(td.poz_no)
-    print(f"expected model: {td.model}")
-    data = get_data(td.siparis_no, td.poz_no)
-    for row in data:
-        print(f"Row data: {row}")
+
+    production_item_name = f"{td.siparis_no}-{td.poz_no}"
+    job_card = frappe.get_doc(
+        "Job Card", {"production_item": production_item_name, "operation": operation}
+    )
+
+    connected_barcodes = list(
+        filter(
+            lambda x: x.model == td.model and int(x.sanal_adet) == int(td.sanal_adet),
+            job_card.custom_barcodes,
+        )
+    )
+    # TODO: Handle Job Card Start|Pause|Complete
+    for cb in connected_barcodes:
+        cb_doc = frappe.get_doc("TesDetay", cb.tesdetay_ref)
+        for os in cb_doc.operation_states:
+            if os.job_card_ref == job_card.name:
+                os.status = "In Progress"
+                os.save(ignore_permissions=True)
+    job_card.save(ignore_permissions=True)
 
     print("\n\n\n")
 
-
-def get_data(order_no, poz_no):
-    with get_mysql_connection() as connection:
-        with connection.cursor() as cursor:
-            query = """
-                SELECT SAYAC, POZNO, MODEL
-                FROM dbtesdetay
-                WHERE SIPARISNO = %s
-                ORDER BY POZNO ASC
-            """
-            cursor.execute(query, (order_no,))
-            data = cursor.fetchall()
-            return data
+    # frappe.throw("-- Read Barcode --")

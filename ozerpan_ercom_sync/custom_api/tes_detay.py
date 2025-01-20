@@ -92,7 +92,7 @@ def sync_tes_detay():
 
             td.makina_no = machine_name
             td.barkod = barcode
-            td.status = "Pending"
+            # td.status = "Pending"
             td.insert()
             synced_count += 1
             logger.info(f"Record {td.sayac} synchronized successfully")

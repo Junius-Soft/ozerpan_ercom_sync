@@ -2,13 +2,17 @@ import frappe
 
 
 def after_insert(doc, method):
-    print("\n\n\n")
+    print("\n\n\n-- Job Card After Insert --")
 
-    bom = frappe.get_doc("BOM", doc.bom_no)
-
-    print(bom.get("items"))
-    print(doc.custom_ozerpan_items)
+    add_barcodes_into_job_card(doc)
 
     print("\n\n\n")
-    # return
-    frappe.throw("-- Job Card After Insert --")
+
+
+def add_barcodes_into_job_card(job_card_doc):
+    for barcode in job_card_doc.custom_barcodes:
+        td = frappe.get_doc("TesDetay", barcode.tesdetay_ref)
+        td.append(
+            "operation_states", {"job_card_ref": job_card_doc.name, "status": "Pending"}
+        )
+        td.save(ignore_permissions=True)
