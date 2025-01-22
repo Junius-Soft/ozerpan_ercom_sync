@@ -25,9 +25,10 @@ function callReadBarcodeAPI() {
   frappe.call({
     method: "ozerpan_ercom_sync.custom_api.api.read_barcode",
     args: {
-      barcode: "K200110304   11000000135000",
+      barcode: "K400310324   11127000000000",
       employee: "HR-EMP-00001",
-      operation: "Kaynak Köşe Temizleme",
+      // operation: "Kaynak Köşe Temizleme",
+      operation: "Kalite",
     },
     callback: (r) => {
       if (r.message) {

@@ -92,7 +92,6 @@ def sync_tes_detay():
 
             td.makina_no = machine_name
             td.barkod = barcode
-            # td.status = "Pending"
             td.insert()
             synced_count += 1
             logger.info(f"Record {td.sayac} synchronized successfully")
@@ -119,17 +118,6 @@ def get_tesdetay_data(pool):
     """
     results = pool.execute_query(query)
     return results
-
-
-# def get_tesdetay_data(pool):
-#     query = """
-#         SELECT *
-#         FROM dbtesdetay
-#         ORDER BY OTONO DESC
-#         LIMIT 100
-#     """
-#     results = pool.execute_query(query)
-#     return results
 
 
 def generate_barcode(araba_no, yer_no, stok_kodu, rc, model, olcu, eksen):
