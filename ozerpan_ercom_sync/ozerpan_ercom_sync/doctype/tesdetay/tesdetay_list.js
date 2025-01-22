@@ -5,7 +5,7 @@ frappe.listview_settings["TesDetay"] = {
   onload(listview) {
     console.log("-- ListView Onload --");
     syncTesDetayBtn(listview);
-    getData(listview);
+    readBarcode(listview);
   },
 };
 
@@ -15,17 +15,20 @@ function syncTesDetayBtn(listview) {
   );
 }
 
-function getData(listview) {
-  listview.page.add_inner_button(__("Barcode Data"), () =>
-    callBarcodeDataApi(),
+function readBarcode(listview) {
+  listview.page.add_inner_button(__("Read Barcode"), () =>
+    callReadBarcodeAPI(),
   );
 }
 
-function callBarcodeDataApi() {
+function callReadBarcodeAPI() {
   frappe.call({
-    method: "ozerpan_ercom_sync.custom_api.api.getData",
+    method: "ozerpan_ercom_sync.custom_api.api.read_barcode",
     args: {
-      barcode: "K2001124913404   14211400086700",
+      barcode: "K400310324   11127000000000",
+      employee: "HR-EMP-00001",
+      // operation: "Kaynak Köşe Temizleme",
+      operation: "Kalite",
     },
     callback: (r) => {
       if (r.message) {

@@ -178,7 +178,7 @@ def get_poz_data(order_no: str, logger: logging.Logger) -> List[Tuple]:
         with get_mysql_connection() as connection:
             with connection.cursor() as cursor:
                 query = """
-                    SELECT SAYAC, SIPARISNO, GENISLIK, YUKSEKLIK, ADET,
+                    SELECT SAYAC, SIPARISNO, GENISLIK, YUKSEKLIK, ADET, RENK
                     SERI, ACIKLAMA, NOTLAR, PozID
                     FROM dbpoz WHERE SIPARISNO = %s
                 """
