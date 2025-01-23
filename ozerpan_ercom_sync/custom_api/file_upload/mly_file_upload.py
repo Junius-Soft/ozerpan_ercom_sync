@@ -226,6 +226,9 @@ def create_bom(
         item = frappe.get_doc("Item", stock_code)
         if not item.custom_kit:
             items_table.append(create_bom_item(row, item))
+        else:
+            bom.custom_accessory_kit = item.get("item_code")
+            bom.custom_accessory_kit_qty = get_float_value(row.get("Miktar"))
 
     add_operations_into_bom(bom, mly_helper.get_middle_operations(profile_group))
 
@@ -248,9 +251,6 @@ def create_bom_item(row: pd.Series, item) -> Dict:
     item_qty = (
         round((amount / rate), 7) if rate != 0.0 else get_float_value(row.get("Miktar"))
     )
-    print("\n")
-    print(f"rate: {rate}\namount: {amount}\nitem_qty: {item_qty}")
-    print("\n")
 
     return {
         "item_code": item.get("item_code"),
