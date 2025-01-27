@@ -1,6 +1,8 @@
 import frappe
 from frappe import _
 
+from ozerpan_ercom_sync.custom_api.read_barcode.helpers.get_poz_data import get_poz_data
+
 
 @frappe.whitelist()
 def read_barcode(barcode: str, employee: str, operation: str):
@@ -21,7 +23,16 @@ def read_barcode(barcode: str, employee: str, operation: str):
 
     else:
         handle_pending_scan(job_card, current_barcode, related_barcodes, employee)
+
+    poz_data = get_poz_data(barcode)
+    formatted_job_card = format_job_card_response(job_card)
     print("\n\n\n")
+
+    result = {
+        "job_card": formatted_job_card,
+        "poz_data": poz_data,
+    }
+    return result
 
 
 def handle_in_progress_scan(job_card, current_barcode, related_barcodes, employee):
@@ -57,6 +68,95 @@ def handle_pending_scan(job_card, current_barcode, related_barcodes, employee):
 
 
 #### HELPERS ####
+
+
+def format_job_card_response(job_card_doc):
+    """
+    Format a Frappe Job Card document into a specific response structure
+
+    Args:
+        job_card_doc: Frappe Job Card document
+
+    Returns:
+        dict: Formatted job card data
+    """
+    # Define the fields we want to keep from the job card
+    required_job_card_fields = [
+        "name",
+        "work_order",
+        "bom_no",
+        "production_item",
+        "posting_date",
+        "for_quantity",
+        "total_completed_qty",
+        "process_loss_qty",
+        "expected_start_date",
+        "time_required",
+        "expected_end_date",
+        "actual_start_date",
+        "total_time_in_mins",
+        "actual_end_date",
+        "operation",
+        "wip_warehouse",
+        "workstation",
+        "hour_rate",
+        "transferred_qty",
+        "requested_qty",
+        "status",
+        "employee",
+    ]
+
+    # Extract required fields from job card
+    formatted_job_card = {
+        field: job_card_doc.get(field) for field in required_job_card_fields
+    }
+
+    # Format time logs
+    formatted_time_logs = []
+    for log in job_card_doc.time_logs:
+        formatted_time_logs.append(
+            {
+                "idx": log.idx,
+                "employee": log.employee,
+                "from_time": log.from_time,
+                "to_time": log.to_time,
+                "time_in_mins": log.time_in_mins,
+                "completed_qty": log.completed_qty,
+            }
+        )
+    formatted_job_card["time_logs"] = formatted_time_logs
+
+    # Format scheduled time logs
+    formatted_scheduled_logs = []
+    for log in job_card_doc.scheduled_time_logs:
+        formatted_scheduled_logs.append(
+            {
+                "idx": log.idx,
+                "from_time": log.from_time,
+                "to_time": log.to_time,
+                "time_in_mins": log.time_in_mins,
+                "parent": log.parent,
+            }
+        )
+    formatted_job_card["scheduled_time_logs"] = formatted_scheduled_logs
+
+    # Format custom barcodes
+    formatted_barcodes = []
+    for barcode in job_card_doc.custom_barcodes:
+        formatted_barcodes.append(
+            {
+                "idx": barcode.idx,
+                "model": barcode.model,
+                "barcode": barcode.barcode,
+                "poz_no": barcode.poz_no,
+                "sanal_adet": barcode.sanal_adet,
+                "status": barcode.status,
+                "tesdetay_ref": barcode.tesdetay_ref,
+            }
+        )
+    formatted_job_card["custom_barcodes"] = formatted_barcodes
+
+    return formatted_job_card
 
 
 def get_in_progress_barcodes(job_card):
