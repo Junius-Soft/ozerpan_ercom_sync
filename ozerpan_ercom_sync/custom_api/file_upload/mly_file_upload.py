@@ -140,9 +140,11 @@ def process_single_sheet(
         logger.warning(f"Empty sheet found: {sheet}")
         return None
 
-    main_profiles_idx = df[df["Stok Kodu"] == "Ana Profiller Toplamı"].index[0]
+    df["Stok Kodu"] = df["Stok Kodu"].str.strip()
+    main_profiles_idx = df[
+        df["Stok Kodu"].str.contains("Ana Profiller Toplamı", na=False)
+    ].index[0]
     main_profiles = df.loc[: main_profiles_idx - 1].copy()
-
     tail = df.tail(3).copy()
     filtered_df = df[df["Stok Kodu"].str.startswith("#", na=False)].copy()
 
