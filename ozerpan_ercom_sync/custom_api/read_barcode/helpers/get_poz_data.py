@@ -1,64 +1,5 @@
 import frappe
 
-# ITEM_GROUPS = {
-#     "destek_saci": [
-#         "Pvc Destek Sacları",
-#     ],
-#     "satis": [
-#         "Pvc Satış",
-#         "Satış Stoğu",
-#     ],
-#     "yardimci_profil": [
-#         "Pvc Hat1 Yardımcı Profiller",
-#         "Pvc Hat2 Yardımcı Profiller",
-#     ],
-#     "panel": [
-#         "Pvc Hat1 Paneller",
-#     ],
-#     "ana_profil": [
-#         "Pvc Hat1 Ana Profiller",
-#         "Pvc Hat2 Ana Profiller",
-#     ],
-#     "cita": [
-#         "Pvc Hat1 Çıtalar",
-#     ],
-#     "aksesuar": [
-#         "Pvc Hat1 Aksesuarlar",
-#         "Pvc Hat2 Aksesuarlar",
-#     ],
-#     "orta_kayit": [
-#         "Pvc Hat1 Ortakayıt Bağlantı",
-#         "Pvc Hat2 Ortakayıt Bağlantı",
-#     ],
-#     "fitil_ve_esik": [
-#         "Pvc Hat1 Fitil ve Eşikler",
-#     ],
-#     "cam_unite": [
-#         "Cam Üniteler",
-#         "Cam Ünite Üretim",
-#         "Cam Ünite Malzemeler",
-#         "Cam Ünite Kimyasallar",
-#         "Cam Ünite Karolaj Çıtaları",
-#         "Cam Ünite Ara Çıtalar",
-#         "Tek Camlar",
-#     ],
-#     "ortak_fitil": [
-#         "Ortak Fitiller",
-#     ],
-#     "ortak_vida": [
-#         "Ortak Vidalar",
-#     ],
-#     "ortak_izolasyon": [
-#         "Ortak İzolasyon",
-#     ],
-#     "pvc_kollari": [
-#         "Pvc Kolları",
-#     ],
-#     "aluminyum_dograma_sistemi": [
-#         "Alüminyum Doğrama Sistem Aks",
-#     ],
-# }
-
 
 @frappe.whitelist()
 def get_poz_data(barcode: str):
@@ -89,8 +30,8 @@ def get_poz_data(barcode: str):
         "sanal_adet": tesdetay.get("sanal_adet"),
         "bayi_adi": tesdetay.get("bayi_adi"),
         "max_sanal_adet": bom_doc.get("quantity"),
-        "serial": bom_item_doc.get("serial"),
-        "color": bom_item_doc.get("color"),
+        "serial": bom_item_doc.get("custom_serial"),
+        "color": bom_item_doc.get("custom_color"),
         "items": grouped_items,
     }
     return data

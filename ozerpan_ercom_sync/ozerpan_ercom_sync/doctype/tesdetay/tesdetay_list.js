@@ -28,7 +28,8 @@ function getPozData(listview) {
 
 function callGetPozDataAPI() {
   frappe.call({
-    method: "ozerpan_ercom_sync.custom_api.poz_data.get_poz_data",
+    method:
+      "ozerpan_ercom_sync.custom_api.read_barcode.helpers.get_poz_data.get_poz_data",
     args: {
       barcode: "K400310324   11127000000000",
     },
@@ -55,7 +56,7 @@ function callGetPozDataAPI() {
 
 function callReadBarcodeAPI() {
   frappe.call({
-    method: "ozerpan_ercom_sync.custom_api.api.read_barcode",
+    method: "ozerpan_ercom_sync.custom_api.read_barcode.api.read_barcode",
     args: {
       barcode: "K400310324   11127000000000",
       employee: "HR-EMP-00001",
