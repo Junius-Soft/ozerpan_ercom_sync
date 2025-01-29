@@ -32,6 +32,7 @@ def get_poz_data(barcode: str):
         "max_sanal_adet": bom_doc.get("quantity"),
         "serial": bom_item_doc.get("custom_serial"),
         "color": bom_item_doc.get("custom_color"),
+        "remarks": bom_item_doc.get("custom_remarks"),
         "items": grouped_items,
     }
     return data
