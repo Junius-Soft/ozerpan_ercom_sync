@@ -342,6 +342,7 @@ def find_barcode_in_job_card(job_card, barcode):
 
 def get_related_barcodes(job_card, current_barcode):
     """Get barcodes with same model and sanal_adet."""
+    # TODO: Handle None error if job_card doesn't have the related barcode
     return [
         b
         for b in job_card.custom_barcodes
