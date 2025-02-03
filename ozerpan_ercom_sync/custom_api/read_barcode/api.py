@@ -13,7 +13,7 @@ def read_barcode(barcode: str, employee: str, operation: str):
         operation, production_item_name
     )
     current_barcode = find_barcode_in_job_card(job_card, barcode)
-    related_barcodes = get_related_barcodes(job_card, current_barcode)
+    related_barcodes = get_related_barcodes_by_operation(job_card, current_barcode)
 
     if current_barcode.status == "Completed":
         frappe.throw(_("This barcode is already completed"))
@@ -35,10 +35,31 @@ def read_barcode(barcode: str, employee: str, operation: str):
     return result
 
 
+def get_related_barcodes_by_operation(job_card, current_barcode):
+    """
+    Get related barcodes based on job card operation type.
+    For 'Kaynak Köşe Temizleme', get barcodes with same model and sanal_adet.
+    For other operations, get barcodes with same sanal_adet only.
+    """
+    if job_card.operation == "Kaynak Köşe Temizleme":
+        return [
+            b
+            for b in job_card.custom_barcodes
+            if b.model == current_barcode.model
+            and int(b.sanal_adet) == int(current_barcode.sanal_adet)
+        ]
+    else:
+        return [
+            b
+            for b in job_card.custom_barcodes
+            if int(b.sanal_adet) == int(current_barcode.sanal_adet)
+        ]
+
+
 def handle_in_progress_scan(job_card, current_barcode, related_barcodes, employee):
     complete_barcodes(job_card, related_barcodes)
 
-    if is_sanal_adet_group_complete(job_card, current_barcode.sanal_adet):
+    if is_sanal_adet_group_complete(job_card, current_barcode):
         complete_job(job_card, 1)
 
         if is_job_fully_complete(job_card):
@@ -50,15 +71,17 @@ def handle_in_progress_scan(job_card, current_barcode, related_barcodes, employe
 
 
 def handle_pending_scan(job_card, current_barcode, related_barcodes, employee):
-    in_progress_operations = get_in_progress_operations(current_barcode.tesdetay_ref)
+    other_operation_job_cards = get_other_operation_job_cards(
+        current_barcode.tesdetay_ref, job_card
+    )
 
-    if in_progress_operations:
-        handle_other_job_cards_completion(in_progress_operations)
+    if other_operation_job_cards:
+        handle_other_job_cards_completion(other_operation_job_cards)
 
     in_progress_barcodes = get_in_progress_barcodes(job_card)
     if in_progress_barcodes:
         complete_barcodes(job_card, in_progress_barcodes)
-        if is_sanal_adet_group_complete(job_card, in_progress_barcodes[0].sanal_adet):
+        if is_sanal_adet_group_complete(job_card, in_progress_barcodes[0]):
             complete_job(job_card, 1)
         else:
             set_job_card_on_hold(job_card)
@@ -67,20 +90,18 @@ def handle_pending_scan(job_card, current_barcode, related_barcodes, employee):
     set_job_card_in_progress(job_card, employee)
 
 
-#### HELPERS ####
+def is_sanal_adet_group_complete(job_card, current_barcode):
+    """Check if all related barcodes in the sanal_adet group are completed."""
+    related_barcodes = [
+        b
+        for b in job_card.custom_barcodes
+        if int(b.sanal_adet) == int(current_barcode.sanal_adet)
+    ]
+    return all(b.status == "Completed" for b in related_barcodes)
 
 
 def format_job_card_response(job_card_doc):
-    """
-    Format a Frappe Job Card document into a specific response structure
-
-    Args:
-        job_card_doc: Frappe Job Card document
-
-    Returns:
-        dict: Formatted job card data
-    """
-    # Define the fields we want to keep from the job card
+    """Format a Frappe Job Card document into a specific response structure."""
     required_job_card_fields = [
         "name",
         "work_order",
@@ -106,70 +127,59 @@ def format_job_card_response(job_card_doc):
         "employee",
     ]
 
-    # Extract required fields from job card
     formatted_job_card = {
         field: job_card_doc.get(field) for field in required_job_card_fields
     }
 
     # Format time logs
-    formatted_time_logs = []
-    for log in job_card_doc.time_logs:
-        formatted_time_logs.append(
-            {
-                "idx": log.idx,
-                "employee": log.employee,
-                "from_time": log.from_time,
-                "to_time": log.to_time,
-                "time_in_mins": log.time_in_mins,
-                "completed_qty": log.completed_qty,
-            }
-        )
-    formatted_job_card["time_logs"] = formatted_time_logs
+    formatted_job_card["time_logs"] = [
+        {
+            "idx": log.idx,
+            "employee": log.employee,
+            "from_time": log.from_time,
+            "to_time": log.to_time,
+            "time_in_mins": log.time_in_mins,
+            "completed_qty": log.completed_qty,
+        }
+        for log in job_card_doc.time_logs
+    ]
 
     # Format scheduled time logs
-    formatted_scheduled_logs = []
-    for log in job_card_doc.scheduled_time_logs:
-        formatted_scheduled_logs.append(
-            {
-                "idx": log.idx,
-                "from_time": log.from_time,
-                "to_time": log.to_time,
-                "time_in_mins": log.time_in_mins,
-                "parent": log.parent,
-            }
-        )
-    formatted_job_card["scheduled_time_logs"] = formatted_scheduled_logs
+    formatted_job_card["scheduled_time_logs"] = [
+        {
+            "idx": log.idx,
+            "from_time": log.from_time,
+            "to_time": log.to_time,
+            "time_in_mins": log.time_in_mins,
+            "parent": log.parent,
+        }
+        for log in job_card_doc.scheduled_time_logs
+    ]
 
     # Format custom barcodes
-    formatted_barcodes = []
-    for barcode in job_card_doc.custom_barcodes:
-        formatted_barcodes.append(
-            {
-                "idx": barcode.idx,
-                "model": barcode.model,
-                "barcode": barcode.barcode,
-                "poz_no": barcode.poz_no,
-                "sanal_adet": barcode.sanal_adet,
-                "status": barcode.status,
-                "tesdetay_ref": barcode.tesdetay_ref,
-            }
-        )
-    formatted_job_card["custom_barcodes"] = formatted_barcodes
+    formatted_job_card["custom_barcodes"] = [
+        {
+            "idx": barcode.idx,
+            "model": barcode.model,
+            "barcode": barcode.barcode,
+            "poz_no": barcode.poz_no,
+            "sanal_adet": barcode.sanal_adet,
+            "status": barcode.status,
+            "tesdetay_ref": barcode.tesdetay_ref,
+        }
+        for barcode in job_card_doc.custom_barcodes
+    ]
 
     return formatted_job_card
 
 
 def get_in_progress_barcodes(job_card):
-    """
-    Get all barcodes with "In Progress" status from job card
-    """
+    """Get all barcodes with "In Progress" status from job card."""
     return [b for b in job_card.custom_barcodes if b.status == "In Progress"]
 
 
 def handle_other_job_cards_completion(in_progress_operations):
-    """
-    Handle completion of in-progress operations in other job cards
-    """
+    """Handle completion of in-progress operations in other job cards."""
     for job_card, operation_state in in_progress_operations:
         related_barcode = next(
             (
@@ -184,33 +194,30 @@ def handle_other_job_cards_completion(in_progress_operations):
             related_barcodes = [
                 b
                 for b in job_card.custom_barcodes
-                if b.model == related_barcode.model
-                and int(b.sanal_adet) == int(related_barcode.sanal_adet)
+                if int(b.sanal_adet) == int(related_barcode.sanal_adet)
+                and b.status == "In Progress"
             ]
+            if related_barcodes:
+                complete_barcodes(job_card, related_barcodes)
 
-            complete_barcodes(job_card, related_barcodes)
+                if is_sanal_adet_group_complete(job_card, related_barcode):
+                    complete_job(job_card, 1)
 
-            if is_sanal_adet_group_complete(job_card, related_barcode.sanal_adet):
-                complete_job(job_card, 1)
-
-                if is_job_fully_complete(job_card):
-                    submit_job_card(job_card)
+                    if is_job_fully_complete(job_card):
+                        submit_job_card(job_card)
+                    else:
+                        set_job_card_on_hold(job_card)
                 else:
                     set_job_card_on_hold(job_card)
-            else:
-                set_job_card_on_hold(job_card)
 
 
-def get_in_progress_operations(tesdetay_ref):
-    """
-    Get all in-progress operations from TesDetay's operation_states
-    Return list of tuples containing (job_card, operation_state)
-    """
+def get_other_operation_job_cards(tesdetay_ref, current_job_card):
+    """Get all in-progress operations from TesDetay's operation_states."""
     tesdetay = frappe.get_doc("TesDetay", tesdetay_ref)
     in_progress_ops = []
 
     for op_state in tesdetay.operation_states:
-        if op_state.status == "In Progress":
+        if op_state.job_card_ref != current_job_card.name:
             try:
                 job_card = frappe.get_doc("Job Card", op_state.job_card_ref)
                 in_progress_ops.append((job_card, op_state))
@@ -221,7 +228,7 @@ def get_in_progress_operations(tesdetay_ref):
 
 
 def set_job_card_on_hold(job_card):
-    """Set Job Card status to 'On Hold'"""
+    """Set Job Card status to 'On Hold'."""
     job_card.status = "On Hold"
     for time_log in job_card.time_logs:
         if not time_log.to_time:  # Find the open time log
@@ -231,9 +238,7 @@ def set_job_card_on_hold(job_card):
 
 
 def complete_barcodes(job_card, barcodes):
-    """
-    Set status of specified barcodes 'Completed' and update corresponding TesDetay records
-    """
+    """Set status of specified barcodes to 'Completed' and update TesDetay records."""
     for barcode in barcodes:
         barcode.status = "Completed"
 
@@ -252,13 +257,6 @@ def submit_job_card(job_card):
     try:
         job_card.status = "Completed"
         job_card.actual_end_date = frappe.utils.now()
-
-        # if hasattr(job_card, "transferred_qty"):
-        #     job_card.transferred_qty = job_card.for_quantity
-
-        # job_card.save(ignore_permissions=True)
-
-        # job_card.docstatus = 1
         job_card.save(ignore_permissions=True)
         job_card.submit()
     except Exception as e:
@@ -267,9 +265,7 @@ def submit_job_card(job_card):
 
 
 def set_barcodes_in_progress(job_card, related_barcodes):
-    """
-    Set status of all related barcodes to "In Progress" and update TesDetay records
-    """
+    """Set status of all related barcodes to "In Progress" and update TesDetay records."""
     for barcode in related_barcodes:
         barcode.status = "In Progress"
         tesdetay = frappe.get_doc("TesDetay", barcode.tesdetay_ref)
@@ -313,23 +309,14 @@ def complete_job(job_card, qty):
         raise
 
 
-def is_sanal_adet_group_complete(job_card, sanal_adet):
-    """Check if all barcodes in sanal_adet group are completed."""
-    related_barcodes = [
-        b for b in job_card.custom_barcodes if int(b.sanal_adet) == int(sanal_adet)
-    ]
-
-    return all(b.status == "Completed" for b in related_barcodes)
-
-
 def is_job_fully_complete(job_card):
     """Check if job card has reached its total required quantity."""
-    total_completed = sum(log.completed_qty for log in job_card.time_logs)
+    total_completed = sum(log.completed_qty or 0 for log in job_card.time_logs)
     return total_completed >= job_card.for_quantity
 
 
 def get_job_card_by_operation_and_production_item(operation, production_item):
-    """Get the relevant Job Card based on the operation and production_item"""
+    """Get the relevant Job Card based on the operation and production_item."""
     return frappe.get_doc(
         "Job Card", {"production_item": production_item, "operation": operation}
     )
@@ -340,21 +327,14 @@ def find_barcode_in_job_card(job_card, barcode):
     return next((b for b in job_card.custom_barcodes if b.barcode == barcode), None)
 
 
-def get_related_barcodes(job_card, current_barcode):
-    """Get barcodes with same model and sanal_adet."""
-    # TODO: Handle None error if job_card doesn't have the related barcode
-    return [
-        b
-        for b in job_card.custom_barcodes
-        if b.model == current_barcode.model
-        and int(b.sanal_adet) == int(current_barcode.sanal_adet)
-    ]
-
-
-# Open
-# Work In Progress
-# Material Transferred
-# On Hold
-# Submitted
-# Cancelled
-# Completed
+# {
+#     "barcode": "K301010315   11128800057800",
+#     "employee": "HR-EMP-00001",
+#     "operation": "Kalite",
+#     "check_list": {"1": 1, "2": 1, "3": 0, "4": 1},
+#     "correction_operations": [
+#         "Kaynak Köşe Temizleme",
+#         "Kanat Hazirlik",
+#     ],
+#     "error": {"title": "", "descripotion": ""},
+# }
