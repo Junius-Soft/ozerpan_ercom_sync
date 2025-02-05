@@ -10,6 +10,12 @@ app_license = "mit"
 
 # required_apps = []
 
+# Fixtures
+fixtures = [
+    {"dt": "Custom Field", "filters": [["module", "=", "Ozerpan Ercom Sync"]]},
+    {"dt": "Property Setter", "filters": [["module", "=", "Ozerpan Ercom Sync"]]},
+]
+
 # Each item in the list will be shown as an app in the apps page
 # add_to_apps_screen = [
 # 	{
