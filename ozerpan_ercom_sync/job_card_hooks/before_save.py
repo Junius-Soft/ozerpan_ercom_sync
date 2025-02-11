@@ -1,7 +1,9 @@
+from typing import Dict, List, Optional
+
 import frappe
 
 
-def before_save(doc, method):
+def before_save(doc, method) -> None:
     print("\n\n\n-- Job Card Before Save --")
     production_item = doc.production_item
     operation_name = doc.operation
@@ -10,23 +12,26 @@ def before_save(doc, method):
     if operation_name == "Profil Temin" or operation_name == "Sac Kesim":
         return
 
+    # Handle corrective job cards differently
+    if doc.is_corrective_job_card:
+        handle_corrective_job_card(doc, order_no, poz_no)
+    else:
+        handle_regular_job_card(doc, order_no, poz_no, operation_name)
+
+
+def handle_corrective_job_card(doc, order_no: str, poz_no: str) -> None:
+    """Handle barcode assignment for corrective job cards"""
+    if not doc.custom_target_sanal_adet:
+        return
+
+    # Get only barcodes with matching sanal_adet
+    tesdetay_list = get_tesdetay_list(
+        order_no, poz_no, target_sanal_adet=doc.custom_target_sanal_adet
+    )
+
     barcodes = []
-    tesdetay_list = get_tesdetay_list(order_no, poz_no)
-
     for td in tesdetay_list:
-        if "KAYIT" in td.get("model"):
-            if (
-                operation_name == "Kaynak Köşe Temizleme"
-                or operation_name == "Kanat Hazırlık"
-                or operation_name == "Kanat Bağlama"
-            ):
-                continue
-
-        operation_status = "Pending"
-        for os in td.get("operation_states"):
-            if os.get("job_card_ref") == doc.name:
-                operation_status = os.get("status")
-                break
+        operation_data = get_operation_status_data(doc, td)
 
         barcodes.append(
             {
@@ -36,7 +41,38 @@ def before_save(doc, method):
                 "stock_code": td.get("stok_kodu"),
                 "poz_no": td.get("poz_no"),
                 "sanal_adet": td.get("sanal_adet"),
-                "status": operation_status,
+                "status": operation_data.get("status", "Pending"),
+            }
+        )
+
+    doc.set("custom_barcodes", barcodes)
+
+
+def handle_regular_job_card(doc, order_no: str, poz_no: str, operation_name: str) -> None:
+    """Handle barcode assignment for regular job cards"""
+    barcodes = []
+    tesdetay_list = get_tesdetay_list(order_no, poz_no)
+
+    for td in tesdetay_list:
+        if "KAYIT" in td.get("model"):
+            if operation_name in [
+                "Kaynak Köşe Temizleme",
+                "Kanat Hazırlık",
+                "Kanat Bağlama",
+            ]:
+                continue
+
+        operation_data = get_operation_status_data(doc, td)
+
+        barcodes.append(
+            {
+                "tesdetay_ref": td.get("name"),
+                "barcode": td.get("barkod"),
+                "model": td.get("model"),
+                "stock_code": td.get("stok_kodu"),
+                "poz_no": td.get("poz_no"),
+                "sanal_adet": td.get("sanal_adet"),
+                "status": operation_data.get("status", "Pending"),
             }
         )
 
@@ -44,7 +80,57 @@ def before_save(doc, method):
     doc.set("custom_barcodes", barcodes)
 
 
-def get_tesdetay_list(order_no, poz_no):
+def get_operation_status_data(doc, tesdetay: Dict) -> Dict[str, str]:
+    """
+    Get operation status data including operation and corrective status
+
+    Args:
+        doc: Job Card document
+        tesdetay: TesDetay document data
+
+    Returns:
+        Dict containing status, operation name and corrective flag
+    """
+    for os in tesdetay.get("operation_states", []):
+        if os.get("job_card_ref") == doc.name:
+            # Update operation states with job card data
+            if doc.get("operation"):
+                os["operation"] = doc.operation
+            if doc.get("is_corrective_job_card"):
+                os["is_corrective"] = 1
+
+            return {
+                "status": os.get("status", "Pending"),
+                "operation": doc.operation,
+                "is_corrective": 1 if doc.is_corrective_job_card else 0,
+            }
+
+    return {
+        "status": "Pending",
+        "operation": doc.operation,
+        "is_corrective": 1 if doc.is_corrective_job_card else 0,
+    }
+
+
+def get_tesdetay_list(
+    order_no: str, poz_no: str, target_sanal_adet: Optional[str] = None
+) -> List[Dict]:
+    """
+    Get TesDetay records for given order and position numbers.
+
+    Args:
+        order_no: Order number
+        poz_no: Position number
+        target_sanal_adet: Optional sanal_adet to filter results
+
+    Returns:
+        List of TesDetay records with their operation states
+    """
+    filters = {"siparis_no": order_no, "poz_no": poz_no}
+
+    if target_sanal_adet is not None:
+        filters["sanal_adet"] = target_sanal_adet
+
     results = frappe.db.sql(
         """
         SELECT
@@ -56,18 +142,27 @@ def get_tesdetay_list(order_no, poz_no):
             td.stok_kodu,
             os.job_card_ref,
             os.status,
+            os.operation,
+            os.is_corrective,
             os.idx
         FROM `tabTesDetay` td
         LEFT JOIN `tabTesDetay Operation Status` os ON td.name = os.parent
-        WHERE siparis_no = %s AND poz_no = %s
+        WHERE td.siparis_no = %(siparis_no)s
+        AND td.poz_no = %(poz_no)s
+        {sanal_adet_filter}
         ORDER BY td.name, os.idx
-        """,
-        (order_no, poz_no),
+        """.format(
+            sanal_adet_filter="AND td.sanal_adet = %(sanal_adet)s"
+            if target_sanal_adet is not None
+            else ""
+        ),
+        filters,
         as_dict=1,
     )
 
     current_doc = None
     organized_data = []
+
     for row in results:
         if current_doc is None or current_doc["name"] != row.name:
             current_doc = {
@@ -76,14 +171,20 @@ def get_tesdetay_list(order_no, poz_no):
                 "sanal_adet": row.sanal_adet,
                 "barkod": row.barkod,
                 "model": row.model,
-                "stok_kodu": row.stock_kodu,
+                "stok_kodu": row.stok_kodu,
                 "operation_states": [],
             }
             organized_data.append(current_doc)
 
         if row.job_card_ref:
             current_doc["operation_states"].append(
-                {"job_card_ref": row.job_card_ref, "status": row.status, "idx": row.idx}
+                {
+                    "job_card_ref": row.job_card_ref,
+                    "status": row.status,
+                    "operation": row.operation,
+                    "is_corrective": row.is_corrective,
+                    "idx": row.idx,
+                }
             )
 
     return organized_data

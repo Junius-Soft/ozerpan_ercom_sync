@@ -1,10 +1,7 @@
 import frappe
 
 
-@frappe.whitelist()
 def get_poz_data(barcode: str):
-    print("\n\n\n-- Get Poz Data API --")
-
     tesdetay = frappe.get_doc("TesDetay", {"barkod": barcode})
 
     bom_name = f"BOM-{tesdetay.siparis_no}-{tesdetay.poz_no}"
@@ -36,7 +33,6 @@ def get_poz_data(barcode: str):
         "items": grouped_items,
     }
     return data
-    print("\n\n\n")
 
 
 def group_bom_items_by_category(bom_doc):
