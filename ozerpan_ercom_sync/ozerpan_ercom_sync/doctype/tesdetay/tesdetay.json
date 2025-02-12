@@ -263,6 +263,7 @@
    "fieldname": "barkod",
    "fieldtype": "Data",
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Barkod"
   },
   {
@@ -286,7 +287,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-01-20 16:32:22.748714",
+ "modified": "2025-02-10 17:15:15.804132",
  "modified_by": "Administrator",
  "module": "Ozerpan Ercom Sync",
  "name": "TesDetay",
