@@ -1,0 +1,50 @@
+{
+ "actions": [],
+ "creation": "2025-02-14 14:45:09.180492",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "order_no",
+  "items"
+ ],
+ "fields": [
+  {
+   "fieldname": "items",
+   "fieldtype": "Table",
+   "label": "Items",
+   "options": "CamListe Item"
+  },
+  {
+   "fieldname": "order_no",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Order No",
+   "reqd": 1,
+   "unique": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-02-18 15:19:18.131820",
+ "modified_by": "Administrator",
+ "module": "Ozerpan Ercom Sync",
+ "name": "CamListe",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
