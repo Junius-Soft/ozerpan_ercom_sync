@@ -1,6 +1,7 @@
 from typing import Any, Dict, Optional, TypedDict
 
 import frappe
+from frappe import _
 
 from .barcode_reader.exceptions import (
     BarcodeError,
@@ -8,6 +9,37 @@ from .barcode_reader.exceptions import (
     QualityControlError,
 )
 from .barcode_reader.reader import BarcodeReader
+from .file_processor.processor import ExcelProcessingManager
+
+
+@frappe.whitelist()
+def process_excel_file(file_url: str) -> Dict[str, Any]:
+    print("\n\n\n")
+    print("--- File Processor ---")
+
+    try:
+        if not file_url:
+            return {
+                "status": "error",
+                "message": _("No file URL provided"),
+                "error_type": "Validation",
+            }
+
+        manager = ExcelProcessingManager()
+        result = manager.process_file(file_url)
+
+        print("\n\n\n")
+        return result
+
+    except Exception as e:
+        frappe.log_error(
+            f"Error in file processing: {str(e)}", "File Processing API Error"
+        )
+        return {
+            "status": "error",
+            "message": _("Unexpected error occured"),
+            "error_type": "system",
+        }
 
 
 class BarcodeRequest(TypedDict):
