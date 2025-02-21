@@ -33,15 +33,15 @@ class GlassListProcessor(ExcelProcessorInterface):
 
             total_processed = 0
             total_created = 0
-            total_updated = 0
             processed_sheets = []
 
             for sheet in sheets:
+                # TODO: Generate ASC files with the format below:
+                # {Serial\Type}         {incremented_serial}{cari_unvan}/{order_no_-4} {poz_no}                            0Y       {adet}            {width}      {height}      {gap}                                                                       5
                 result = self._process_glass_list_data(sheet, file_info)
                 processed_sheets.append({"sheet_name": sheet.name, **result})
                 total_processed += result.get("processed_records")
                 total_created += result.get("created_records", 0)
-                total_updated += result.get("updated_records", 0)
 
             return {
                 "status": "success",
@@ -50,7 +50,6 @@ class GlassListProcessor(ExcelProcessorInterface):
                 "sheet_count": len(sheets),
                 "total_processed": total_processed,
                 "total_created": total_created,
-                "total_updated": total_updated,
                 "sheets": processed_sheets,
             }
 
