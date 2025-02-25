@@ -73,6 +73,7 @@ def handle_regular_job_card(doc, order_no: str, poz_no: str, operation_name: str
                 "poz_no": td.get("poz_no"),
                 "sanal_adet": td.get("sanal_adet"),
                 "status": operation_data.get("status", "Pending"),
+                "quality_data": td.get("quality_data"),
             }
         )
 
@@ -140,6 +141,7 @@ def get_tesdetay_list(
             td.barkod,
             td.model,
             td.stok_kodu,
+            td.quality_data,
             os.job_card_ref,
             os.status,
             os.operation,
@@ -172,6 +174,7 @@ def get_tesdetay_list(
                 "barkod": row.barkod,
                 "model": row.model,
                 "stok_kodu": row.stok_kodu,
+                "quality_data": row.quality_data,
                 "operation_states": [],
             }
             organized_data.append(current_doc)

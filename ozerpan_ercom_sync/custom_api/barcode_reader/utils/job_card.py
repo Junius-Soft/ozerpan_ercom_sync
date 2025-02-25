@@ -57,14 +57,18 @@ def is_job_fully_complete(job_card: Any) -> bool:
     return total_completed >= job_card.for_quantity
 
 
-def get_job_card(operation: str, production_item: str) -> Any:
+def get_job_card(operation: str, production_item: str, barcode: str) -> Any:
     job_card = frappe.get_doc(
         "Job Card",
-        {"production_item": production_item, "operation": operation, "docstatus": 0},
+        {
+            "production_item": production_item,
+            "operation": operation,
+            "docstatus": 0,
+        },
     )
     if not job_card:
         raise frappe.ValidationError(
-            f"No active job card found for {operation} - {production_item}"
+            f"No active job card found for {operation} - {production_item} with barcode {barcode}"
         )
     return job_card
 

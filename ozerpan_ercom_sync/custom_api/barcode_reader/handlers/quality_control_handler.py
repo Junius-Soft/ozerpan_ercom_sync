@@ -1,3 +1,4 @@
+import json
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
@@ -35,6 +36,7 @@ class QualityControlHandler(OperationHandler):
         self, job_card: Any, current_barcode: BarcodeInfo
     ) -> List[BarcodeInfo]:
         """Get barcodes with same sanal_adet."""
+        print(f"\n\n\nOlala: {job_card.custom_barcodes[0].quality_data}\n\n\n")
         return [
             BarcodeInfo(
                 barcode=b.barcode,
@@ -43,6 +45,7 @@ class QualityControlHandler(OperationHandler):
                 tesdetay_ref=b.tesdetay_ref,
                 status=BarcodeStatus(b.status),
                 job_card_ref=job_card.name,
+                quality_data=b.quality_data,
             )
             for b in job_card.custom_barcodes
             if int(b.sanal_adet) == current_barcode.sanal_adet
@@ -61,11 +64,21 @@ class QualityControlHandler(OperationHandler):
         related_barcodes = self.get_related_barcodes(job_card, current_barcode)
 
         if current_barcode.status == BarcodeStatus.COMPLETED:
-            frappe.throw(_("This operation for this item is already completed."))
+            return {
+                "message": _("This operation for this item is already completed."),
+                "status": "error",
+                "related_barcodes": [b.barcode for b in related_barcodes],
+            }
+            # frappe.throw(_("This operation for this item is already completed."))
 
         elif current_barcode.status == BarcodeStatus.IN_PROGRESS:
             if not quality_data:
-                frappe.throw(_("Quality data is required for quality control"))
+                return {
+                    "message": _("Quality data is required for quality control"),
+                    "status": "error",
+                    "related_barcodes": [b.barcode for b in related_barcodes],
+                }
+                # frappe.throw(_("Quality data is required for quality control"))
 
             # Check if all previous operations are completed
             if not self._check_previous_operations_complete(current_barcode):
@@ -183,7 +196,10 @@ class QualityControlHandler(OperationHandler):
             if barcode_row:
                 barcode_row.status = "In Correction"
                 update_operation_status(
-                    barcode.tesdetay_ref, job_card.name, BarcodeStatus.IN_CORRECTION
+                    barcode.tesdetay_ref,
+                    job_card.name,
+                    BarcodeStatus.IN_CORRECTION,
+                    quality_data,
                 )
 
         job_card.save()
@@ -302,6 +318,32 @@ Criteria Results:"""
     Reason for Correction: {operation_data.get("reason")}
     Priority: {operation_data.get("priority")}"""
 
+    def _handle_pending_scan(
+        self,
+        job_card: Any,
+        current_barcode: BarcodeInfo,
+        related_barcodes: List[BarcodeInfo],
+        employee: str,
+    ) -> Dict[str, Any]:
+        in_progress_barcodes = self._get_in_progress_barcodes(job_card)
+        if in_progress_barcodes:
+            self._complete_barcode_group(job_card, in_progress_barcodes)
+            if self._is_sanal_adet_group_complete(job_card, in_progress_barcodes[0]):
+                complete_job(job_card, 1)
+            else:
+                update_job_card_status(job_card, "On Hold")
+
+        self._set_barcodes_in_progress(job_card, related_barcodes)
+        update_job_card_status(job_card, "Work In Progress", employee)
+        quality_data = None
+        if current_barcode.status == BarcodeStatus.IN_CORRECTION:
+            quality_data = current_barcode.quality_data
+        return {
+            "status": "in_progress",
+            "in_progress_barcodes": [b.barcode for b in related_barcodes],
+            "quality_data": json.loads(quality_data) if quality_data else None,
+        }
+
     _get_current_barcode = KaynakKoseHandler._get_current_barcode
     _get_other_in_progress_jobs = KaynakKoseHandler._get_other_in_progress_jobs
     _complete_barcode_group = KaynakKoseHandler._complete_barcode_group
@@ -309,4 +351,4 @@ Criteria Results:"""
     _set_barcodes_in_progress = KaynakKoseHandler._set_barcodes_in_progress
     _get_in_progress_barcodes = KaynakKoseHandler._get_in_progress_barcodes
     _is_sanal_adet_group_complete = KaynakKoseHandler._is_sanal_adet_group_complete
-    _handle_pending_scan = KaynakKoseHandler._handle_pending_scan
+    # _handle_pending_scan = KaynakKoseHandler._handle_pending_scan
