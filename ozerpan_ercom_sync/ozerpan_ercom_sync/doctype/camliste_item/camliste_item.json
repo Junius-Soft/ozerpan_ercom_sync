@@ -8,7 +8,6 @@
  "field_order": [
   "section_break_18zo",
   "stok_kodu",
-  "adet",
   "bm2",
   "tm2",
   "menfez",
@@ -34,12 +33,6 @@
    "fieldname": "aciklama",
    "fieldtype": "Small Text",
    "label": "Aciklama"
-  },
-  {
-   "fieldname": "adet",
-   "fieldtype": "Int",
-   "in_list_view": 1,
-   "label": "Adet"
   },
   {
    "fieldname": "gen",
@@ -116,13 +109,13 @@
    "fieldname": "status",
    "fieldtype": "Select",
    "label": "Status",
-   "options": "Pending\nIn Progress\nProduced"
+   "options": "Pending\nIn Progress\nCompleted"
   }
  ],
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2025-02-18 16:26:48.888885",
+ "modified": "2025-02-25 13:32:15.682012",
  "modified_by": "Administrator",
  "module": "Ozerpan Ercom Sync",
  "name": "CamListe Item",
