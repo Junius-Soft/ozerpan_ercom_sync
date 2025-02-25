@@ -41,6 +41,7 @@ class BarcodeReader:
         job_card = get_job_card(
             operation=operation,
             production_item=f"{tesdetay.siparis_no}-{tesdetay.poz_no}",
+            barcode=barcode,
         )
 
         handler = self.handlers.get(operation, self.handlers["default"])

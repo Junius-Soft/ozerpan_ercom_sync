@@ -30,6 +30,7 @@ class KaynakKoseHandler(OperationHandler):
                 tesdetay_ref=b.tesdetay_ref,
                 status=BarcodeStatus(b.status),
                 job_card_ref=job_card.name,
+                quality_data=b.quality_data,
             )
             for b in job_card.custom_barcodes
             if (
@@ -56,7 +57,11 @@ class KaynakKoseHandler(OperationHandler):
                 current_barcode, job_card.operation
             )
             if not uncompleted_job_cards:
-                frappe.throw(_("All the related Job Cards are already completed."))
+                return {
+                    "message": _("All the related Job Cards are already completed."),
+                    "status": "error",
+                    "related_barcodes": [b.barcode for b in related_barcodes],
+                }
 
             next_job_card = uncompleted_job_cards[0]
             next_barcode = self._get_current_barcode(next_job_card, barcode)
@@ -95,6 +100,9 @@ class KaynakKoseHandler(OperationHandler):
         tesdetay = frappe.get_doc("TesDetay", barcode.tesdetay_ref)
         uncompleted_jobs = []
 
+        print("\n\n\n")
+        print("UnCompleted:", uncompleted_jobs)
+        print("\n\n\n")
         for op_state in tesdetay.operation_states:
             try:
                 job_card = frappe.get_doc("Job Card", op_state.job_card_ref)
@@ -197,6 +205,7 @@ class KaynakKoseHandler(OperationHandler):
                 tesdetay_ref=b.tesdetay_ref,
                 status=BarcodeStatus(b.status),
                 job_card_ref=job_card.name,
+                quality_data=b.quality_data,
             )
             for b in job_card.custom_barcodes
             if b.status == BarcodeStatus.IN_PROGRESS.value
@@ -253,4 +262,5 @@ class KaynakKoseHandler(OperationHandler):
             tesdetay_ref=b.tesdetay_ref,
             status=BarcodeStatus(b.status),
             job_card_ref=job_card.name,
+            quality_data=b.quality_data,
         )

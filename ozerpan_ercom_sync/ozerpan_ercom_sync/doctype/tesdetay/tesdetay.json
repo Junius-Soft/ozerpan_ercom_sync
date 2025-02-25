@@ -20,6 +20,7 @@
   "model",
   "pozisyon",
   "sayac",
+  "quality_data",
   "section_break_drsa",
   "adet",
   "olcu",
@@ -283,11 +284,17 @@
   {
    "fieldname": "column_break_edjv",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "quality_data",
+   "fieldtype": "JSON",
+   "label": "Quality Data",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-02-10 17:15:15.804132",
+ "modified": "2025-02-25 15:17:30.449565",
  "modified_by": "Administrator",
  "module": "Ozerpan Ercom Sync",
  "name": "TesDetay",
