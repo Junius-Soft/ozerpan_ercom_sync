@@ -1,3 +1,5 @@
+import datetime
+import os
 from typing import Any, Dict, List
 
 import frappe
@@ -36,9 +38,8 @@ class GlassListProcessor(ExcelProcessorInterface):
             processed_sheets = []
 
             for sheet in sheets:
-                # TODO: Generate ASC files with the format below:
-                # {Serial\Type}         {incremented_serial}{cari_unvan}/{order_no_-4} {poz_no}                            0Y       {adet}            {width}      {height}      {gap}                                                                       5
                 result = self._process_glass_list_data(sheet, file_info)
+                asc_file_paths = self._generate_asc_files(sheet, file_info)
                 processed_sheets.append({"sheet_name": sheet.name, **result})
                 total_processed += result.get("processed_records")
                 total_created += result.get("created_records", 0)
@@ -51,6 +52,7 @@ class GlassListProcessor(ExcelProcessorInterface):
                 "total_processed": total_processed,
                 "total_created": total_created,
                 "sheets": processed_sheets,
+                "asc_file_paths": asc_file_paths,
             }
 
         except Exception as e:
@@ -62,6 +64,95 @@ class GlassListProcessor(ExcelProcessorInterface):
 
     def get_supported_file_type(self) -> ExcelFileType:
         return ExcelFileType.CAM
+
+    def _generate_asc_files(
+        self, sheet: SheetData, file_info: ExcelFileInfo
+    ) -> Dict[str, List[str]]:
+        try:
+            # Clean and prepare data
+            df = (
+                sheet.data.replace({np.nan: None})
+                .dropna(how="all")
+                .dropna(axis=1, how="all")
+            )
+            records = df.to_dict("records")
+
+            # Group records by stock code and calculate totals
+            total_item_count = 0
+            grouped_records = {}
+            for record in records:
+                total_item_count += record.get("ADET", 0)
+                stock_code = self._clean_stock_code(record.get("STOKKODU"))
+                if not stock_code:
+                    continue
+                grouped_records.setdefault(stock_code, []).append(
+                    {**record, "STOKKODU": stock_code}
+                )
+
+            generated_files = {}
+            for stock_code, group_records in grouped_records.items():
+                try:
+                    order_no = group_records[0]["SIPARISNO"]
+                    site_path = frappe.utils.get_site_path()
+                    asc_file_path = os.path.join(
+                        site_path,
+                        "public",
+                        "files",
+                        "asc",
+                        f"OP_{order_no}_{stock_code}.asc",
+                    )
+                    os.makedirs(os.path.dirname(asc_file_path), exist_ok=True)
+
+                    # Write ASC file
+                    with open(asc_file_path, "w") as asc_file:
+                        first_record = group_records[0]
+                        current_date = datetime.datetime.now().strftime("%d%m%Y")
+
+                        # Write header
+                        header = (
+                            f"{first_record['CARIUNVAN']}/{first_record['MUSTERI']}"
+                            f"{' ' * 2}{current_date}{' ' * 14}"
+                            f"{total_item_count}V{len(grouped_records)}\n{' ' * 7}"
+                            f"{len(group_records)}\n"
+                        )
+                        asc_file.write(header)
+
+                        # Write records
+                        glass_doc = frappe.get_doc("Cam", stock_code)
+                        for idx, record in enumerate(group_records, 1):
+                            line = self._format_asc_line(
+                                idx=idx, record=record, glass_doc=glass_doc
+                            )
+                            asc_file.write(line)
+
+                    generated_files[stock_code] = asc_file_path
+
+                except Exception as e:
+                    frappe.log_error(
+                        f"Error processing stock code {stock_code}: {str(e)}",
+                        "ASC File Generation Error",
+                    )
+
+            return generated_files
+
+        except Exception as e:
+            frappe.log_error(
+                f"Error generating ASC files for sheet {sheet.name}: {str(e)}",
+                "Glass List Sheet Processing Error",
+            )
+            raise
+
+    def _format_asc_line(self, idx: int, record: Dict, glass_doc: Any) -> str:
+        return "{:<15}{:>20}{:>30}{:>8}{:>15}{:>9}{:>8}{:>72}\n".format(
+            f"0{glass_doc.serial}\\0{glass_doc.type}",
+            f"{idx}{record['CARIUNVAN'][:6]}/{record['SIPARISNO'][-4:]} {record['POZNO']:02d}",
+            "0Y",
+            record["ADET"],
+            record["GEN"],
+            record["YUK"],
+            int(glass_doc.gap),
+            "5",
+        )
 
     def _process_glass_list_data(
         self, sheet: SheetData, file_info: ExcelFileInfo
@@ -95,7 +186,6 @@ class GlassListProcessor(ExcelProcessorInterface):
             return {
                 "processed_records": len(items),
                 "created_records": created_count,
-                # "records": processed_records,
             }
         except Exception as e:
             frappe.log_error(
@@ -124,7 +214,6 @@ class GlassListProcessor(ExcelProcessorInterface):
             item_data = {
                 "stok_kodu": self._clean_stock_code(record["STOKKODU"]),
                 "aciklama": record.get("ACIKLAMA"),
-                "adet": record.get("ADET", 0),
                 "gen": record.get("GEN", 0),
                 "yuk": record.get("YUK", 0),
                 "bm2": record.get("BM2", 0),
@@ -138,7 +227,9 @@ class GlassListProcessor(ExcelProcessorInterface):
                 "karolaj": record.get("KAROLAJ", 0),
                 "status": "Pending",
             }
-            items.append(item_data)
+            qty = int(record.get("ADET"))
+            for i in range(qty):
+                items.append(item_data)
 
         except Exception as e:
             frappe.log_error(
