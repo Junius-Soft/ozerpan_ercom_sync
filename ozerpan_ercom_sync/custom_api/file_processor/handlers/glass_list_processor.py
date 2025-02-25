@@ -112,13 +112,17 @@ class GlassListProcessor(ExcelProcessorInterface):
                         header = (
                             f"{first_record['CARIUNVAN']}/{first_record['MUSTERI']}"
                             f"{' ' * 2}{current_date}{' ' * 14}"
-                            f"{total_item_count}V{len(grouped_records)}\n{' ' * 7}"
-                            f"{len(group_records)}\n"
+                            f"{total_item_count}V{len(grouped_records)}\n"
                         )
                         asc_file.write(header)
+                        asc_file.write("{:>8}\n".format(len(group_records)))
 
                         # Write records
                         glass_doc = frappe.get_doc("Cam", stock_code)
+                        group_records.sort(
+                            key=lambda x: (x["YUK"], x["GEN"]), reverse=True
+                        )
+
                         for idx, record in enumerate(group_records, 1):
                             line = self._format_asc_line(
                                 idx=idx, record=record, glass_doc=glass_doc
