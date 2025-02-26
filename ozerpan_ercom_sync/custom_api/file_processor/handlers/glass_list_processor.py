@@ -36,13 +36,32 @@ class GlassListProcessor(ExcelProcessorInterface):
             total_processed = 0
             total_created = 0
             processed_sheets = []
+            all_asc_file_paths = {}
 
             for sheet in sheets:
                 result = self._process_glass_list_data(sheet, file_info)
                 asc_file_paths = self._generate_asc_files(sheet, file_info)
-                processed_sheets.append({"sheet_name": sheet.name, **result})
+
+                # Add the ASC file paths to the sheet result for tracking
+                sheet_result = {
+                    "sheet_name": sheet.name,
+                    **result,
+                    "asc_files": asc_file_paths,
+                }
+
+                processed_sheets.append(sheet_result)
                 total_processed += result.get("processed_records")
                 total_created += result.get("created_records", 0)
+
+                # Merge ASC file paths dictionaries
+                all_asc_file_paths.update(asc_file_paths)
+
+            # Check if any ASC files were generated
+            if not all_asc_file_paths:
+                frappe.log_error(
+                    f"No ASC files were generated for any sheet in order {file_info.order_no}",
+                    "ASC File Generation Warning",
+                )
 
             return {
                 "status": "success",
@@ -52,7 +71,8 @@ class GlassListProcessor(ExcelProcessorInterface):
                 "total_processed": total_processed,
                 "total_created": total_created,
                 "sheets": processed_sheets,
-                "asc_file_paths": asc_file_paths,
+                "asc_file_paths": all_asc_file_paths,
+                "asc_file_count": len(all_asc_file_paths),
             }
 
         except Exception as e:
@@ -67,7 +87,7 @@ class GlassListProcessor(ExcelProcessorInterface):
 
     def _generate_asc_files(
         self, sheet: SheetData, file_info: ExcelFileInfo
-    ) -> Dict[str, List[str]]:
+    ) -> Dict[str, str]:
         try:
             # Clean and prepare data
             df = (
@@ -81,10 +101,25 @@ class GlassListProcessor(ExcelProcessorInterface):
             total_item_count = 0
             grouped_records = {}
             for record in records:
-                total_item_count += record.get("ADET", 0)
+                # Validate required fields for ASC file
+                if not self._validate_asc_record(record):
+                    continue
+
                 stock_code = self._clean_stock_code(record.get("STOKKODU"))
                 if not stock_code:
+                    frappe.log_error(
+                        "Empty stock code found in record", "ASC File Generation Warning"
+                    )
                     continue
+
+                # Convert ADET to int and handle invalid values
+                try:
+                    adet = int(record.get("ADET", 0))
+                    record["ADET"] = adet
+                    total_item_count += adet
+                except (ValueError, TypeError):
+                    record["ADET"] = 0
+
                 grouped_records.setdefault(stock_code, []).append(
                     {**record, "STOKKODU": stock_code}
                 )
@@ -92,50 +127,111 @@ class GlassListProcessor(ExcelProcessorInterface):
             generated_files = {}
             for stock_code, group_records in grouped_records.items():
                 try:
-                    order_no = group_records[0]["SIPARISNO"]
+                    # Skip empty groups
+                    if not group_records:
+                        continue
+
+                    # Check if records have valid ADET values
+                    if any(record.get("ADET", 0) <= 0 for record in group_records):
+                        frappe.log_error(
+                            f"Some records have zero or negative ADET for stock code {stock_code}",
+                            "ASC File Generation Warning",
+                        )
+
+                    # Get order number
+                    order_no = group_records[0].get("SIPARISNO")
+                    if not order_no:
+                        frappe.log_error(
+                            f"Missing SIPARISNO for stock code {stock_code}",
+                            "ASC File Generation Warning",
+                        )
+                        continue
+
+                    # Create directory and file path
                     site_path = frappe.utils.get_site_path()
+                    asc_dir = os.path.join(site_path, "public", "files", "asc")
+                    os.makedirs(asc_dir, exist_ok=True)
+
                     asc_file_path = os.path.join(
-                        site_path,
-                        "public",
-                        "files",
-                        "asc",
+                        asc_dir,
                         f"OP_{order_no}_{stock_code}.asc",
                     )
-                    os.makedirs(os.path.dirname(asc_file_path), exist_ok=True)
+
+                    # Validate glass doc exists
+                    if not frappe.db.exists("Cam", stock_code):
+                        frappe.log_error(
+                            f"Cam document not found for stock code {stock_code}",
+                            "ASC File Generation Error",
+                        )
+                        continue
+
+                    glass_doc = frappe.get_doc("Cam", stock_code)
 
                     # Write ASC file
                     with open(asc_file_path, "w") as asc_file:
+                        frappe.log_error(
+                            f"Writing ASC file for stock code {stock_code}, order {order_no}",
+                            "ASC File Generation Info",
+                        )
+
                         first_record = group_records[0]
                         current_date = datetime.datetime.now().strftime("%d%m%Y")
 
-                        # Write header
-                        header = (
-                            f"{first_record['CARIUNVAN']}/{first_record['MUSTERI']}"
-                            f"{' ' * 2}{current_date}{' ' * 14}"
-                            f"{total_item_count}V{len(grouped_records)}\n"
+                        # Write header with safe text conversion
+                        cari_unvan = self._safe_get_text(first_record, "CARIUNVAN")
+                        musteri = self._safe_get_text(first_record, "MUSTERI")
+
+                        header = "{:<31}{:>9}{:>18}\n{:>8}\n".format(
+                            f"{self._turkishToEnglish(cari_unvan)}/{self._turkishToEnglish(musteri)}",
+                            current_date,
+                            f"{total_item_count}V4",
+                            len(group_records),
                         )
                         asc_file.write(header)
-                        asc_file.write("{:>8}\n".format(len(group_records)))
 
-                        # Write records
-                        glass_doc = frappe.get_doc("Cam", stock_code)
+                        # Sort and write records
                         group_records.sort(
-                            key=lambda x: (x["YUK"], x["GEN"]), reverse=True
+                            key=lambda x: (x.get("YUK", 0), x.get("GEN", 0)), reverse=True
                         )
 
                         for idx, record in enumerate(group_records, 1):
-                            line = self._format_asc_line(
-                                idx=idx, record=record, glass_doc=glass_doc
-                            )
-                            asc_file.write(line)
+                            try:
+                                line = self._format_asc_line(
+                                    idx=idx, record=record, glass_doc=glass_doc
+                                )
+                                asc_file.write(line)
+                            except Exception as line_error:
+                                frappe.log_error(
+                                    f"Error writing line for record {idx}, stock code {stock_code}: {str(line_error)}",
+                                    "ASC File Line Generation Error",
+                                )
 
-                    generated_files[stock_code] = asc_file_path
+                        # Flush and close file explicitly
+                        asc_file.flush()
+
+                    # Verify file was written correctly
+                    if (
+                        os.path.exists(asc_file_path)
+                        and os.path.getsize(asc_file_path) > 0
+                    ):
+                        generated_files[stock_code] = asc_file_path
+                    else:
+                        frappe.log_error(
+                            f"ASC file for {stock_code} was created but is empty or missing",
+                            "ASC File Generation Error",
+                        )
 
                 except Exception as e:
                     frappe.log_error(
                         f"Error processing stock code {stock_code}: {str(e)}",
                         "ASC File Generation Error",
                     )
+
+            if not generated_files:
+                frappe.log_error(
+                    f"No ASC files were generated for sheet {sheet.name}",
+                    "ASC File Generation Warning",
+                )
 
             return generated_files
 
@@ -146,17 +242,109 @@ class GlassListProcessor(ExcelProcessorInterface):
             )
             raise
 
+    def _turkishToEnglish(self, text):
+        """Convert Turkish characters to English equivalents"""
+        if not text:
+            return ""
+
+        if not isinstance(text, str):
+            try:
+                text = str(text)
+            except Exception:
+                return ""
+
+        char_map = {
+            "ç": "c",
+            "ğ": "g",
+            "ı": "i",
+            "ö": "o",
+            "ş": "s",
+            "ü": "u",
+            "Ç": "C",
+            "Ğ": "G",
+            "İ": "I",
+            "Ö": "O",
+            "Ş": "S",
+            "Ü": "U",
+        }
+        for char in char_map:
+            text = text.replace(char, char_map[char])
+        return text
+
+    def _safe_get_text(self, record, field):
+        """Safely get text field value with fallback to empty string"""
+        value = record.get(field, "")
+        if value is None:
+            return ""
+        return str(value)
+
+    def _validate_asc_record(self, record: Dict) -> bool:
+        """Validate record has all necessary fields for ASC file generation"""
+        required_fields = [
+            "STOKKODU",
+            "ADET",
+            "GEN",
+            "YUK",
+            "POZNO",
+            "SIPARISNO",
+            "CARIUNVAN",
+            "MUSTERI",
+        ]
+        for field in required_fields:
+            if field not in record or record[field] is None:
+                return False
+        return True
+
     def _format_asc_line(self, idx: int, record: Dict, glass_doc: Any) -> str:
-        return "{:<15}{:>20}{:>30}{:>8}{:>15}{:>9}{:>8}{:>72}\n".format(
-            f"0{glass_doc.serial}\\0{glass_doc.type}",
-            f"{idx}{record['CARIUNVAN'][:6]}/{record['SIPARISNO'][-4:]} {record['POZNO']:02d}",
-            "0Y",
-            record["ADET"],
-            record["GEN"],
-            record["YUK"],
-            int(glass_doc.gap),
-            "5",
-        )
+        """Format a line for ASC file with safe access to fields"""
+        try:
+            # Safely get values with defaults
+            cari_unvan = self._safe_get_text(record, "CARIUNVAN")
+            siparis_no = self._safe_get_text(record, "SIPARISNO")
+
+            # Handle potential errors in converting values
+            try:
+                adet = int(record.get("ADET", 0))
+            except (ValueError, TypeError):
+                adet = 0
+
+            try:
+                gen = int(record.get("GEN", 0))
+            except (ValueError, TypeError):
+                gen = 0
+
+            try:
+                yuk = int(record.get("YUK", 0))
+            except (ValueError, TypeError):
+                yuk = 0
+
+            try:
+                poz_no = int(record.get("POZNO", 0))
+            except (ValueError, TypeError):
+                poz_no = 0
+
+            try:
+                gap = int(glass_doc.gap)
+            except (ValueError, TypeError, AttributeError):
+                gap = 0
+
+            # Format the line with validated values
+            return "{:<15}{:>20}{:>30}{:>8}{:>15}{:>9}{:>8}{:>72}\n".format(
+                f"0{glass_doc.serial}\\0{glass_doc.type}",
+                f"{idx}{cari_unvan[:6]}/{siparis_no[-4:] if len(siparis_no) >= 4 else siparis_no} {poz_no:02d}",
+                "0Y",
+                adet,
+                gen,
+                yuk,
+                gap,
+                "5",
+            )
+        except Exception as e:
+            frappe.log_error(
+                f"Error formatting ASC line: {str(e)}", "ASC Line Format Error"
+            )
+            # Return a minimal valid line to avoid breaking the whole file
+            return "ERROR_IN_LINE\n"
 
     def _process_glass_list_data(
         self, sheet: SheetData, file_info: ExcelFileInfo
