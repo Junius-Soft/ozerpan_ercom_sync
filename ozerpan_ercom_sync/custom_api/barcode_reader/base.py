@@ -26,5 +26,5 @@ class OperationHandler(ABC):
         pass
 
     def validate_operation(self, job_card: Any) -> None:
-        if job_card.docstatus != 0:
-            frappe.throw(_("Cannot process submitted or cancelled job card"))
+        if job_card.docstatus == 2:
+            frappe.throw(_("Cannot process cancelled job card"))
