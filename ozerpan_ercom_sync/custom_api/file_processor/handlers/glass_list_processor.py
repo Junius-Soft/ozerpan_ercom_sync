@@ -46,7 +46,6 @@ class GlassListProcessor(ExcelProcessorInterface):
                 sheet_result = {
                     "sheet_name": sheet.name,
                     **result,
-                    "asc_files": asc_file_paths,
                 }
 
                 processed_sheets.append(sheet_result)
