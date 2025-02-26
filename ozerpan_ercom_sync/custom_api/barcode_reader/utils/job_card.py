@@ -58,19 +58,52 @@ def is_job_fully_complete(job_card: Any) -> bool:
 
 
 def get_job_card(operation: str, production_item: str, barcode: str) -> Any:
-    job_card = frappe.get_doc(
+    # First get all active job cards matching the basic criteria
+    active_job_cards = frappe.get_all(
         "Job Card",
-        {
+        filters={
             "production_item": production_item,
             "operation": operation,
             "docstatus": 0,
         },
+        as_list=True,
     )
-    if not job_card:
-        raise frappe.ValidationError(
-            f"No active job card found for {operation} - {production_item} with barcode {barcode}"
-        )
-    return job_card
+    
+    # Try to find an active job card with the matching barcode
+    if active_job_cards:
+        for job_card_name in active_job_cards:
+            job_card = frappe.get_doc("Job Card", job_card_name[0])
+            
+            # Check if the job card contains the barcode in its custom_barcodes child table
+            if job_card.custom_barcodes:
+                for custom_barcode in job_card.custom_barcodes:
+                    if custom_barcode.barcode == barcode and custom_barcode.status != "Completed":
+                        return job_card
+    
+    # If no active job card with matching barcode found, look for completed job cards
+    completed_job_cards = frappe.get_all(
+        "Job Card",
+        filters={
+            "production_item": production_item,
+            "operation": operation,
+        },
+        order_by="modified desc",  # Get the most recently modified first
+        as_list=True,
+    )
+    
+    for job_card_name in completed_job_cards:
+        job_card = frappe.get_doc("Job Card", job_card_name[0])
+        
+        # Check if the job card contains the barcode in its custom_barcodes child table
+        if job_card.custom_barcodes:
+            for custom_barcode in job_card.custom_barcodes:
+                if custom_barcode.barcode == barcode:
+                    return job_card
+    
+    # If no job card with matching barcode found, raise error
+    raise frappe.ValidationError(
+        f"No job card found with barcode {barcode} for {operation} - {production_item}"
+    )
 
 
 # When multiple users attempt to modify and save the same document simultaneously,
