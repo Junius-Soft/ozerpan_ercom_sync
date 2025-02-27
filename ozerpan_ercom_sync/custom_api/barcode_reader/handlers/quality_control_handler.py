@@ -36,7 +36,6 @@ class QualityControlHandler(OperationHandler):
         self, job_card: Any, current_barcode: BarcodeInfo
     ) -> List[BarcodeInfo]:
         """Get barcodes with same sanal_adet."""
-        print(f"\n\n\nOlala: {job_card.custom_barcodes[0].quality_data}\n\n\n")
         return [
             BarcodeInfo(
                 barcode=b.barcode,
@@ -62,14 +61,19 @@ class QualityControlHandler(OperationHandler):
 
         current_barcode = self._get_current_barcode(job_card, barcode)
         related_barcodes = self.get_related_barcodes(job_card, current_barcode)
+        quality_json_data = (
+            json.loads(current_barcode.quality_data)
+            if current_barcode.quality_data
+            else None
+        )
 
         if current_barcode.status == BarcodeStatus.COMPLETED:
             return {
                 "message": _("This operation for this item is already completed."),
                 "status": "error",
                 "related_barcodes": [b.barcode for b in related_barcodes],
+                "quality_data": quality_json_data,
             }
-            # frappe.throw(_("This operation for this item is already completed."))
 
         elif current_barcode.status == BarcodeStatus.IN_PROGRESS:
             if not quality_data:
@@ -77,8 +81,8 @@ class QualityControlHandler(OperationHandler):
                     "message": _("Quality data is required for quality control"),
                     "status": "error",
                     "related_barcodes": [b.barcode for b in related_barcodes],
+                    "quality_data": quality_json_data,
                 }
-                # frappe.throw(_("Quality data is required for quality control"))
 
             # Check if all previous operations are completed
             if not self._check_previous_operations_complete(current_barcode):
@@ -299,7 +303,8 @@ Criteria Results:"""
                     "wip_warehouse": original_job_card.wip_warehouse,
                     "custom_target_sanal_adet": current_barcode.sanal_adet,
                     "custom_quality_job_card": quality_job_card.name,
-                    "remarks": self._format_correction_remarks(operation_data),
+                    # "remarks": self._format_correction_remarks(operation_data),
+                    "remarks": operation_data.get("description"),
                 }
             )
 

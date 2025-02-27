@@ -61,7 +61,6 @@ class BarcodeReader:
         return {
             "status": "success",
             "message": _("Barcode processed successfully"),
-            # "job_card": job_card.name,
             **result,
             "poz_data": poz_data,
             "job_card": formatted_job_card,

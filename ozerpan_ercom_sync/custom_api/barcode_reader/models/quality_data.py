@@ -23,6 +23,7 @@ class CorrectionOperation:
     operation: str
     reason: str
     priority: int
+    description: str
 
 
 @dataclass
