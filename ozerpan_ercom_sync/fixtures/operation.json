@@ -114,20 +114,6 @@
  {
   "batch_size": 1,
   "create_job_card_based_on_batch_size": 0,
-  "description": "Orta Kayıt",
-  "docstatus": 0,
-  "doctype": "Operation",
-  "is_corrective_operation": 0,
-  "modified": "2025-01-19 20:38:16.898867",
-  "name": "Orta Kayıt",
-  "quality_inspection_template": null,
-  "sub_operations": [],
-  "total_operation_time": 0.0,
-  "workstation": "ORTAKAYIT BAĞLAMA 1"
- },
- {
-  "batch_size": 1,
-  "create_job_card_based_on_batch_size": 0,
   "description": "Kanat Hazırlık",
   "docstatus": 0,
   "doctype": "Operation",
@@ -138,6 +124,20 @@
   "sub_operations": [],
   "total_operation_time": 0.0,
   "workstation": "KANAT HAZIRLIK 1"
+ },
+ {
+  "batch_size": 1,
+  "create_job_card_based_on_batch_size": 0,
+  "description": "Kaynak Köşe Temizleme",
+  "docstatus": 0,
+  "doctype": "Operation",
+  "is_corrective_operation": 0,
+  "modified": "2025-01-19 20:38:16.906752",
+  "name": "Kaynak Köşe Temizleme",
+  "quality_inspection_template": null,
+  "sub_operations": [],
+  "total_operation_time": 0.0,
+  "workstation": "KÖŞE TEMİZLEME MURAT"
  },
  {
   "batch_size": 1,
@@ -156,15 +156,15 @@
  {
   "batch_size": 1,
   "create_job_card_based_on_batch_size": 0,
-  "description": "Kaynak Köşe Temizleme",
+  "description": "Orta Kayıt",
   "docstatus": 0,
   "doctype": "Operation",
   "is_corrective_operation": 0,
-  "modified": "2025-01-19 20:38:16.906752",
-  "name": "Kaynak Köşe Temizleme",
+  "modified": "2025-01-19 20:38:16.898867",
+  "name": "Orta Kayıt",
   "quality_inspection_template": null,
   "sub_operations": [],
   "total_operation_time": 0.0,
-  "workstation": "KÖŞE TEMİZLEME MURAT"
+  "workstation": "ORTAKAYIT BAĞLAMA 1"
  }
 ]
