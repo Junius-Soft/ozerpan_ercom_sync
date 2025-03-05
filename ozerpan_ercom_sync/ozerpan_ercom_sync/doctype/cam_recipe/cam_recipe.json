@@ -1,0 +1,61 @@
+{
+ "actions": [],
+ "allow_import": 1,
+ "allow_rename": 1,
+ "autoname": "format:{item_no}",
+ "creation": "2025-03-03 21:46:26.758022",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "item_no",
+  "cam_mutable_items",
+  "cam_fixed_items"
+ ],
+ "fields": [
+  {
+   "fieldname": "item_no",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Cam Item No",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "cam_mutable_items",
+   "fieldtype": "Table",
+   "label": "Cam Mutable Items",
+   "options": "Cam Mutable Items"
+  },
+  {
+   "fieldname": "cam_fixed_items",
+   "fieldtype": "Table",
+   "label": "Cam Fixed Items",
+   "options": "Cam Fixed Items"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-03-05 10:04:56.313667",
+ "modified_by": "Administrator",
+ "module": "Ozerpan Ercom Sync",
+ "name": "Cam Recipe",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}
