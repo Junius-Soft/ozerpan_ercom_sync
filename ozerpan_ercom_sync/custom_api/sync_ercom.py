@@ -55,7 +55,7 @@ def create_users(data: list[dict], logger) -> None:
             curr_count=i + 1,
             max_count=data_len,
             title="Customer",
-            desc=f"Updating Customers... {i+1}/{data_len}",
+            desc=f"Updating Customers... {i + 1}/{data_len}",
         )
         if frappe.db.exists("Customer", {"customer_name": row["ADI"]}):
             logger.info(f"Customer already exists: {row['ADI']}")
@@ -182,7 +182,7 @@ def sync_orders(logger):
         with connection.cursor() as cursor:
             LIMIT: int = 350
             query: str = f"SELECT * FROM dbsiparis ORDER BY SAYAC DESC LIMIT {LIMIT}"
-            # query: str = "SELECT * FROM dbsiparis WHERE SIPARISNO = 'S404325'"
+            # query: str = "SELECT * FROM dbsiparis WHERE SIPARISNO = 'S500389'"
             cursor.execute(query)
             data = cursor.fetchall()
 
@@ -199,7 +199,7 @@ def sync_orders(logger):
                     curr_count=i + 1,
                     max_count=data_len,
                     title=_("Sales Order"),
-                    desc=f"Updating Sales Order... {i+1}/{data_len}",
+                    desc=f"Updating Sales Order... {i + 1}/{data_len}",
                 )
                 try:
                     create_sales_order(
