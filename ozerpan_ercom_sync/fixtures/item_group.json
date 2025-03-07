@@ -5,6 +5,19 @@
   "image": null,
   "is_group": 0,
   "item_group_defaults": [],
+  "item_group_name": "Pvc Hat1 Destek Sacları",
+  "modified": "2025-03-05 11:34:37.151004",
+  "name": "Pvc Hat1 Destek Sacları",
+  "old_parent": "",
+  "parent_item_group": null,
+  "taxes": []
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Item Group",
+  "image": null,
+  "is_group": 0,
+  "item_group_defaults": [],
   "item_group_name": "Products",
   "modified": "2025-01-19 19:43:04.177432",
   "name": "Products",
@@ -705,6 +718,19 @@
   "docstatus": 0,
   "doctype": "Item Group",
   "image": null,
+  "is_group": 0,
+  "item_group_defaults": [],
+  "item_group_name": "Pvc Destek Sacları",
+  "modified": "2024-11-04 14:55:59.167268",
+  "name": "Pvc Destek Sacları",
+  "old_parent": "",
+  "parent_item_group": null,
+  "taxes": []
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Item Group",
+  "image": null,
   "is_group": 1,
   "item_group_defaults": [],
   "item_group_name": "All Item Groups",
@@ -712,6 +738,19 @@
   "name": "All Item Groups",
   "old_parent": "",
   "parent_item_group": "",
+  "taxes": []
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Item Group",
+  "image": null,
+  "is_group": 0,
+  "item_group_defaults": [],
+  "item_group_name": "Satış Stoğu",
+  "modified": "2024-11-05 13:22:07.388361",
+  "name": "Satış Stoğu",
+  "old_parent": "",
+  "parent_item_group": null,
   "taxes": []
  }
 ]
