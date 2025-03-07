@@ -1,108 +1,365 @@
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List
 
 import frappe
 import numpy as np
 from frappe import _
 
 from ozerpan_ercom_sync.custom_api.file_processor.constants import ExcelFileType
+from ozerpan_ercom_sync.custom_api.file_processor.handlers import mly_helper
+from ozerpan_ercom_sync.custom_api.utils import get_float_value
+from ozerpan_ercom_sync.db_pool import DatabaseConnectionPool
 
 from ..base import ExcelProcessorInterface
 from ..models.excel_file_info import ExcelFileInfo, SheetData
 
+DEFAULT_TAX_ACCOUNT = {
+    "name": "ERCOM HESAPLANAN KDV 20",
+    "number": "391.99",
+    "tax_rate": 20,
+}
+
 
 class MLYListProcessor(ExcelProcessorInterface):
     def validate(self, file_info: ExcelFileInfo) -> None:
-        pass
+        print("-- Validate --")
+        if not file_info.order_no:
+            raise ValueError(_("Order number is required"))
+
+        # Validate sales order exists
+        if not frappe.db.exists(
+            "Sales Order",
+            {
+                "custom_ercom_order_no": file_info.order_no,
+                "status": "Draft",
+            },
+        ):
+            raise ValueError(
+                _(
+                    "No such Sales Order found. Please sync the database before uploading the file."
+                )
+            )
 
     def process(self, file_info: ExcelFileInfo, file_data: bytes) -> Dict[str, Any]:
+        print("-- Process Start --")
         try:
             sheets = self.read_excel_file(file_data)
 
-            processed_sheets = []
-            for sheet in sheets:
-                processed_data = self._process_mly_list_data(sheet, file_info)
-                processed_sheets.append(
-                    {"sheet_name": sheet.name, "data": processed_data}
-                )
+            # Get poz data from ERCOM database
+            poz_data = self._get_poz_data(file_info.order_no)
 
+            print("Poz Data:", poz_data)
+            print("File Info:", file_info)
+            # Get and update sales order
+            sales_order = self._get_sales_order(file_info.order_no)
+            self._update_sales_order_taxes(sales_order)
+
+            processed_sheets = []
+            for idx, sheet in enumerate(sheets):
+                try:
+                    print("-- 1 --")
+                    result = self._process_sheet(sheet, poz_data[idx], file_info)
+                    print("Result:", result)
+                    processed_sheets.append({"sheet_name": sheet.name, "data": result})
+                except IndexError:
+                    print("-- Index Error --")
+                    frappe.log_error(
+                        f"Skipping empty sheet {sheet.name} - no matching poz_data index",
+                        "MLY Processing Warning",
+                    )
+                    continue
+
+            # Update sales order items
+            # TODO: Sheets are empty
+            print("Sheets:", processed_sheets)
+            self._update_sales_order_items(sales_order, processed_sheets)
+
+            print("-- Process End --")
             return {
                 "status": "success",
                 "message": _("MLY list file processed successfully"),
                 "order_no": file_info.order_no,
                 "sheet_count": len(sheets),
+                "processed_sheets": len(processed_sheets),
                 "sheets": processed_sheets,
             }
 
         except Exception as e:
+            print("-- Error from process:", e)
             frappe.log_error(
-                f"Error processing MLY3 file: {str(e)}",
+                f"Error processing MLY file: {str(e)}",
                 "MLY List Processing Error",
             )
             raise
 
     def get_supported_file_type(self) -> ExcelFileType:
+        print("-- Get Supported File Type --")
         return ExcelFileType.MLY
 
-    def _process_mly_list_data(
-        self, sheet: SheetData, file_info: ExcelFileInfo
+    def _get_poz_data(self, order_no: str) -> List[Dict]:
+        """Get order data from dbpoz table using connection pool"""
+        print("-- Get Poz Data --")
+        db_pool = DatabaseConnectionPool()
+        print("\n\nOrder no:", order_no)
+        try:
+            query = """
+                SELECT SAYAC, SIPARISNO, GENISLIK, YUKSEKLIK, ADET, RENK,
+                SERI, ACIKLAMA, NOTLAR, PozID
+                FROM dbpoz WHERE SIPARISNO = %(order_no)s
+            """
+            results = db_pool.execute_query(query, {"order_no": order_no})
+            return results
+        except Exception as e:
+            error_msg = f"Error fetching data for order {order_no}: {str(e)}"
+            frappe.log_error(error_msg)
+            raise frappe.ValidationError(error_msg)
+
+    def _process_sheet(
+        self, sheet: SheetData, poz_data: Dict, file_info: ExcelFileInfo
     ) -> Dict[str, Any]:
+        print("-- Process Sheet --")
         try:
             df = sheet.data.replace({np.nan: None})
             df = df.dropna(how="all")
             df = df.dropna(axis=1, how="all")
 
-            records = df.to_dict("records")
+            # Process main profiles
+            main_profiles_idx = df[
+                df["Stok Kodu"].str.contains("Ana Profiller Toplamı", na=False)
+            ].index[0]
+            main_profiles = df.loc[: main_profiles_idx - 1].copy()
 
-            processed_records = []
-            for record in records:
-                if self._is_valid_record(record):
-                    processed_record = self._process_mly_record(record, file_info)
-                    if processed_record:
-                        processed_records.append(processed_record)
+            # Get tail data
+            tail = df.tail(3).copy()
+            filtered_df = df[df["Stok Kodu"].str.startswith("#", na=False)].copy()
+
+            # Extract item information
+            item_code = f"{tail['Stok Kodu'].iloc[0]}-{tail['Stok Kodu'].iloc[1]}"
+            total_price = tail["Toplam Fiyat"].iloc[0]
+
+            # Create/update item and BOM
+            item = self._create_item(item_code, total_price, poz_data)
+            bom_result = self._create_bom(
+                item.name, poz_data.get("ADET"), main_profiles, filtered_df
+            )
 
             return {
-                "processed_records": len(processed_records),
-                "records": processed_records,
+                "item_code": item.item_code,
+                "item_name": item.item_name,
+                "description": item.description,
+                "qty": item.custom_quantity,
+                "uom": item.stock_uom,
+                "rate": bom_result.get("total_cost"),
+                "bom_no": bom_result.get("docname"),
             }
+
         except Exception as e:
+            print("-- Error from _process_sheet:", e)
             frappe.log_error(
                 f"Error processing sheet {sheet.name}: {str(e)}",
-                "MLY List Sheet Processing Error",
+                "MLY Sheet Processing Error",
             )
             raise
 
-    def _is_valid_record(self, record: Dict) -> bool:
-        return any(record.values())
+    def _create_item(self, item_code: str, total_price: float, poz_data: Dict) -> Any:
+        """Create or update Item document"""
+        print("-- Create Item --")
+        if frappe.db.exists("Item", {"item_code": item_code}):
+            item = frappe.get_doc("Item", {"item_code": item_code})
+        else:
+            item = frappe.new_doc("Item")
 
-    def _process_mly_record(
-        self, record: Dict, file_info: ExcelFileInfo
-    ) -> Optional[Dict]:
-        try:
-            # Implement the logic to process each mly record
-            # This should be customized based on your specific requirements
-            # Example implementation:
-            processed_record = {
-                "order_no": file_info.order_no,
-                "original_data": record,
-                # Add more fields based on your requirements
+        item.update(
+            {
+                "item_code": item_code,
+                "item_name": item_code,
+                "item_group": "All Item Groups",
+                "stock_uom": "Nos",
+                "valuation_rate": total_price,
+                "description": poz_data.get("ACIKLAMA"),
+                "custom_serial": poz_data.get("SERI"),
+                "custom_width": poz_data.get("GENISLIK"),
+                "custom_height": poz_data.get("YUKSEKLIK"),
+                "custom_color": poz_data.get("RENK"),
+                "custom_quantity": poz_data.get("ADET"),
+                "custom_remarks": poz_data.get("NOTLAR"),
+                "custom_poz_id": poz_data.get("PozID"),
             }
+        )
 
-            # You might want to create or update Frappe documents here
-            # Example:
-            # self._create_or_update_mly_entry(processed_record)
+        item.save(ignore_permissions=True)
+        print(f"-- Item Created: {item.name} --")
+        return item
 
-            return processed_record
-        except Exception as e:
-            frappe.log_error(
-                f"Error processing record: {str(e)}", "MLY Record Processing Error"
+    def _create_bom(
+        self, item_name: str, qty: float, main_profiles: Any, df: Any
+    ) -> Dict[str, Any]:
+        """Create Bill of Materials document"""
+        print("-- Create BOM --")
+        company = frappe.defaults.get_user_default("Company")
+        bom = frappe.new_doc("BOM")
+        bom.item = item_name
+        bom.company = company
+        bom.quantity = qty
+        bom.rm_cost_as_per = "Price List"
+        bom.buying_price_list = "Standard Selling"
+
+        # Process profile groups
+        profile_group = []
+        for idx, row in main_profiles.iterrows():
+            stock_code = row["Stok Kodu"].lstrip("#")
+            if not frappe.db.exists("Profile Type", stock_code):
+                raise ValueError(f"Profile Type not found: {stock_code}")
+            pt = frappe.get_doc("Profile Type", stock_code)
+            profile_group.append(pt.get("group"))
+
+        # Process BOM items
+        items_table = []
+        for _, row in df.iterrows():
+            stock_code = row["Stok Kodu"].lstrip("#")
+            if not frappe.db.exists("Item", stock_code):
+                print("Item Not Found:", stock_code)
+                raise ValueError(f"Item not found: {stock_code}")
+
+            item = frappe.get_doc("Item", stock_code)
+            if not item.custom_kit:
+                items_table.append(self._create_bom_item(row, item))
+            else:
+                bom.custom_accessory_kit = item.get("item_code")
+                bom.custom_accessory_kit_qty = get_float_value(row.get("Miktar"))
+
+        # Add operations
+        self._add_operations_to_bom(bom, mly_helper.get_middle_operations(profile_group))
+
+        bom.set("items", items_table)
+        bom.save(ignore_permissions=True)
+        bom.submit()
+        print(f"-- BOM Created: {bom.name} --")
+
+        return {
+            "msg": "BOM created successfully.",
+            "docname": bom.name,
+            "total_cost": bom.total_cost,
+        }
+
+    def _create_bom_item(self, row: Dict, item: Any) -> Dict:
+        """Create BOM item entry"""
+        print("-- Create BOM Item --")
+        rate = get_float_value(str(row.get("Birim Fiyat", "0.0")))
+        amount = get_float_value(str(row.get("Toplam Fiyat", "0.0")))
+        item_qty = (
+            round((amount / rate), 7)
+            if rate != 0.0
+            else get_float_value(row.get("Miktar"))
+        )
+
+        print(f"-- BOM Item Created: {item.name} --")
+        return {
+            "item_code": item.get("item_code"),
+            "item_name": item.get("item_name"),
+            "description": item.get("description"),
+            "uom": str(row.get("Birim")),
+            "qty": item_qty,
+            "rate": rate,
+        }
+
+    def _add_operations_to_bom(self, bom: Any, middle_operations: List[str]) -> None:
+        """Add operations to BOM"""
+        print("-- Add Operations To Bom --")
+        fixed_starting_operations = ["Profil Temin", "Sac Kesim"]
+        fixed_ending_operations = ["Çıta", "Kalite", "Sevkiyat"]
+        full_operations = (
+            fixed_starting_operations + middle_operations + fixed_ending_operations
+        )
+
+        operation_items = []
+        for operation_name in full_operations:
+            o = frappe.get_doc("Operation", operation_name)
+            operation_items.append(
+                {"operation": o.name, "workstation": o.workstation, "time_in_mins": 10}
             )
-            return None
 
-    def _create_mly_entry(self, processed_record: Dict) -> None:
-        try:
-            pass
-        except Exception as e:
-            frappe.log_error(
-                f"Error creating/updating mly entry: {str(e)}", "MLY Entry Error"
+        bom.with_operations = 1
+        bom.set("operations", operation_items)
+
+    def _get_sales_order(self, order_no: str) -> Any:
+        """Get sales order document"""
+        print("-- Get Sales Order --")
+        return frappe.get_last_doc(
+            "Sales Order",
+            {
+                "custom_ercom_order_no": order_no,
+                "status": "Draft",
+            },
+        )
+
+    def _update_sales_order_taxes(self, sales_order: Any) -> None:
+        print("-- Update Sales Order Taxes --")
+        """Update sales order tax information"""
+        tax_account = self._get_tax_account()
+
+        existing_tax = next(
+            (
+                tax
+                for tax in sales_order.taxes
+                if tax.account_head == tax_account.get("name")
+            ),
+            None,
+        )
+
+        if not existing_tax:
+            sales_order.append(
+                "taxes",
+                {
+                    "charge_type": "On Net Total",
+                    "account_head": tax_account.get("name"),
+                    "rate": tax_account.get("tax_rate"),
+                    "description": tax_account.get("name"),
+                },
             )
-            raise
+        print("-- Update Sales Order Taxes End --")
+
+    def _get_tax_account(self) -> Any:
+        """Get or create tax account"""
+        account_filters = {
+            "account_name": DEFAULT_TAX_ACCOUNT["name"],
+            "account_number": DEFAULT_TAX_ACCOUNT["number"],
+        }
+
+        if not frappe.db.exists("Account", account_filters):
+            company = frappe.get_doc(
+                "Company", frappe.defaults.get_user_default("company")
+            )
+            account = frappe.new_doc("Account")
+            account.update(
+                {
+                    "account_name": DEFAULT_TAX_ACCOUNT["name"],
+                    "account_number": DEFAULT_TAX_ACCOUNT["number"],
+                    "parent_account": f"391 - HESAPLANAN KDV - {company.abbr}",
+                    "currency": "TRY",
+                    "account_type": "Tax",
+                    "tax_rate": DEFAULT_TAX_ACCOUNT["tax_rate"],
+                }
+            )
+            account.save(ignore_permissions=True)
+            return account
+
+        return frappe.get_doc("Account", account_filters)
+
+    def _update_sales_order_items(
+        self, sales_order: Any, processed_sheets: List[Dict]
+    ) -> None:
+        """Update sales order with processed items"""
+        print("-- Update Sales Order Items --")
+        items = []
+        # print("sheets:", processed_sheets)
+        for sheet in processed_sheets:
+            print("\n\n")
+            print("sheet:", sheet)
+            print("\n\n")
+            if sheet.get("data"):
+                items.append(sheet["data"])
+
+        sales_order.set("items", items)
+        sales_order.save(ignore_permissions=True)
+
+        print("-- Update Sales Order Items End --")
