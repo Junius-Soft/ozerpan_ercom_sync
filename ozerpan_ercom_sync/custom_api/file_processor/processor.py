@@ -30,8 +30,6 @@ class ExcelProcessingManager:
         try:
             try:
                 print("\n\n\n")
-                print("File URL:", file_url)
-                print("\n\n\n")
                 file_doc = frappe.get_doc("File", {"file_url": file_url})
             except frappe.DoesNotExistError:
                 raise ValueError(_("File not found"))
@@ -55,6 +53,7 @@ class ExcelProcessingManager:
 
             result = processor.process(file_info, file_content)
 
+            print("\n\n\n")
             return {
                 "status": "success",
                 "message": _("File processed successfully"),
