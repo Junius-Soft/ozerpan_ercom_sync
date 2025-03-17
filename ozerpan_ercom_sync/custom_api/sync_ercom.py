@@ -182,7 +182,7 @@ def sync_orders(logger):
         with connection.cursor() as cursor:
             LIMIT: int = 350
             query: str = f"SELECT * FROM dbsiparis ORDER BY SAYAC DESC LIMIT {LIMIT}"
-            # query: str = "SELECT * FROM dbsiparis WHERE SIPARISNO = 'S500389'"
+            # query: str = "SELECT * FROM dbsiparis WHERE SIPARISNO = 'S500396'"
             cursor.execute(query)
             data = cursor.fetchall()
 

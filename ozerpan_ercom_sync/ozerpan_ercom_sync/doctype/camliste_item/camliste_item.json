@@ -14,15 +14,16 @@
   "karolaj",
   "column_break_irgc",
   "cari_kod",
+  "musteri",
   "cari_unvan",
   "gen",
   "yuk",
   "kucuk_cam",
   "column_break_wkep",
-  "musteri",
   "poz_no",
   "aciklama",
-  "status"
+  "status",
+  "sanal_adet"
  ],
  "fields": [
   {
@@ -109,13 +110,18 @@
    "fieldname": "status",
    "fieldtype": "Select",
    "label": "Status",
-   "options": "Pending\nIn Progress\nCompleted"
+   "options": "Pending\nIn Progress\nIn Correction\nCompleted\nApproved"
+  },
+  {
+   "fieldname": "sanal_adet",
+   "fieldtype": "Int",
+   "label": "Sanal Adet"
   }
  ],
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2025-02-25 13:32:15.682012",
+ "modified": "2025-03-17 20:20:06.490074",
  "modified_by": "Administrator",
  "module": "Ozerpan Ercom Sync",
  "name": "CamListe Item",

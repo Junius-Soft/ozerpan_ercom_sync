@@ -7,6 +7,9 @@ import numpy as np
 from frappe import _
 
 from ozerpan_ercom_sync.custom_api.file_processor.constants import ExcelFileType
+from ozerpan_ercom_sync.custom_api.file_processor.handlers.mly_list_processor import (
+    MLYListProcessor,
+)
 
 from ..base import ExcelProcessorInterface
 from ..models.excel_file_info import ExcelFileInfo, SheetData
@@ -26,20 +29,44 @@ class GlassListProcessor(ExcelProcessorInterface):
     ]
 
     def validate(self, file_info: ExcelFileInfo) -> None:
+        print("-- Validate --")
         if not file_info.order_no:
             raise ValueError(_("Order number is required"))
+
+        # Validate sales order exists
+        if not frappe.db.exists(
+            "Sales Order",
+            {
+                "custom_ercom_order_no": file_info.order_no,
+                "status": "Draft",
+            },
+        ):
+            raise ValueError(
+                _(
+                    "No such Sales Order found. Please sync the database before uploading the file."
+                )
+            )
 
     def process(self, file_info: ExcelFileInfo, file_data: bytes) -> Dict[str, Any]:
         try:
             sheets = self.read_excel_file(file_data)
+            sales_order = self._get_sales_order(file_info.order_no)
+            if sales_order.items[0].item_code == "Place Holder Item":
+                raise ValueError(_("Please upload MLY file first."))
 
             total_processed = 0
             total_created = 0
             processed_sheets = []
             all_asc_file_paths = {}
+            poz_quantity: Dict = {}
+
+            for item in sales_order.items:
+                code_parts = item.item_code.split("-")
+                poz_no = code_parts[1]
+                poz_quantity[poz_no] = int(item.qty)
 
             for sheet in sheets:
-                result = self._process_glass_list_data(sheet, file_info)
+                result = self._process_glass_list_data(sheet, file_info, poz_quantity)
                 asc_file_paths = self._generate_asc_files(sheet, file_info)
 
                 # Add the ASC file paths to the sheet result for tracking
@@ -346,7 +373,7 @@ class GlassListProcessor(ExcelProcessorInterface):
             return "ERROR_IN_LINE\n"
 
     def _process_glass_list_data(
-        self, sheet: SheetData, file_info: ExcelFileInfo
+        self, sheet: SheetData, file_info: ExcelFileInfo, poz_quantity: Dict
     ) -> Dict[str, Any]:
         try:
             df = sheet.data.replace({np.nan: None})
@@ -368,7 +395,7 @@ class GlassListProcessor(ExcelProcessorInterface):
 
             for record in records:
                 if self._is_valid_record(record):
-                    self._process_record(items, record)
+                    self._process_record(items, record, poz_quantity)
                     created_count += 1
 
             cam_liste_doc.set("items", items)
@@ -400,7 +427,7 @@ class GlassListProcessor(ExcelProcessorInterface):
             return ""
         return stock_code.replace("#", "").strip()
 
-    def _process_record(self, items: List[Dict], record: Dict):
+    def _process_record(self, items: List[Dict], record: Dict, poz_quantity: Dict):
         try:
             item_data = {
                 "stok_kodu": self._clean_stock_code(record["STOKKODU"]),
@@ -419,8 +446,13 @@ class GlassListProcessor(ExcelProcessorInterface):
                 "status": "Pending",
             }
             qty = int(record.get("ADET"))
-            for i in range(qty):
-                items.append(item_data)
+            poz_no = record.get("POZNO")
+            poz_qty = poz_quantity[str(poz_no)]
+            for i in range(poz_qty):
+                for j in range(qty):
+                    new_item = item_data.copy()
+                    new_item["sanal_adet"] = i + 1
+                    items.append(new_item)
 
         except Exception as e:
             frappe.log_error(
@@ -428,3 +460,5 @@ class GlassListProcessor(ExcelProcessorInterface):
                 "Glass Record Processing Error",
             )
             return None
+
+    _get_sales_order = MLYListProcessor._get_sales_order
