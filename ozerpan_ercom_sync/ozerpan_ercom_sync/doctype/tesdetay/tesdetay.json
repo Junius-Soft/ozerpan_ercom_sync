@@ -51,7 +51,8 @@
   "ds_boyu",
   "hesap_kodu",
   "wc",
-  "aciklama"
+  "aciklama",
+  "musteri"
  ],
  "fields": [
   {
@@ -290,11 +291,16 @@
    "fieldtype": "JSON",
    "label": "Quality Data",
    "read_only": 1
+  },
+  {
+   "fieldname": "musteri",
+   "fieldtype": "Data",
+   "label": "Musteri"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-02-25 15:17:30.449565",
+ "modified": "2025-03-17 09:29:25.158249",
  "modified_by": "Administrator",
  "module": "Ozerpan Ercom Sync",
  "name": "TesDetay",

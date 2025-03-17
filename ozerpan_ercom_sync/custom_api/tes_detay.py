@@ -83,6 +83,7 @@ def sync_tes_detay():
                 "sanal_adet": "SANALADET",
                 "aciklama": "ACIKLAMA",
                 "uretim_sayac": "URETIMSAYAC",
+                "musteri": "MUSTERISI",
             }
 
             for field, key in field_mappings.items():
@@ -110,12 +111,14 @@ def sync_tes_detay():
 
 def get_tesdetay_data(pool):
     query = """
-        SELECT *
+        SELECT td.*, t.*, s.MUSTERISI
         FROM dbtesdetay td
         LEFT JOIN dbtes t ON td.OTONO = t.OTONO
+        LEFT JOIN dbsiparis s ON td.SIPARISNO = s.SIPARISNO
         ORDER BY td.OTONO DESC
         LIMIT 5000
     """
+        # WHERE td.SIPARISNO = "S404325"
     results = pool.execute_query(query)
     return results
 
