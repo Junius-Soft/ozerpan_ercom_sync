@@ -9,7 +9,11 @@ def before_save(doc, method) -> None:
     operation_name = doc.operation
     order_no, poz_no = production_item.split("-")
 
-    if operation_name == "Profil Temin" or operation_name == "Sac Kesim":
+    if (
+        operation_name == "Profil Temin"
+        or operation_name == "Sac Kesim"
+        or operation_name == "Cam"
+    ):
         return
 
     # Handle corrective job cards differently

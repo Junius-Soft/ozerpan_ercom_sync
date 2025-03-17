@@ -2,6 +2,7 @@ from typing import Any, Dict, List
 
 import frappe
 import numpy as np
+import pandas as pd
 from frappe import _
 
 from ozerpan_ercom_sync.custom_api.file_processor.constants import ExcelFileType
@@ -47,8 +48,8 @@ class MLYListProcessor(ExcelProcessorInterface):
             # Get poz data from ERCOM database
             poz_data = self._get_poz_data(file_info.order_no)
 
-            print("Poz Data:", poz_data)
             print("File Info:", file_info)
+
             # Get and update sales order
             sales_order = self._get_sales_order(file_info.order_no)
             self._update_sales_order_taxes(sales_order)
@@ -56,9 +57,7 @@ class MLYListProcessor(ExcelProcessorInterface):
             processed_sheets = []
             for idx, sheet in enumerate(sheets):
                 try:
-                    print("-- 1 --")
                     result = self._process_sheet(sheet, poz_data[idx], file_info)
-                    print("Result:", result)
                     processed_sheets.append({"sheet_name": sheet.name, "data": result})
                 except IndexError:
                     print("-- Index Error --")
@@ -69,8 +68,6 @@ class MLYListProcessor(ExcelProcessorInterface):
                     continue
 
             # Update sales order items
-            # TODO: Sheets are empty
-            print("Sheets:", processed_sheets)
             self._update_sales_order_items(sales_order, processed_sheets)
 
             print("-- Process End --")
@@ -84,7 +81,6 @@ class MLYListProcessor(ExcelProcessorInterface):
             }
 
         except Exception as e:
-            print("-- Error from process:", e)
             frappe.log_error(
                 f"Error processing MLY file: {str(e)}",
                 "MLY List Processing Error",
@@ -99,7 +95,6 @@ class MLYListProcessor(ExcelProcessorInterface):
         """Get order data from dbpoz table using connection pool"""
         print("-- Get Poz Data --")
         db_pool = DatabaseConnectionPool()
-        print("\n\nOrder no:", order_no)
         try:
             query = """
                 SELECT SAYAC, SIPARISNO, GENISLIK, YUKSEKLIK, ADET, RENK,
@@ -122,24 +117,58 @@ class MLYListProcessor(ExcelProcessorInterface):
             df = df.dropna(how="all")
             df = df.dropna(axis=1, how="all")
 
-            # Process main profiles
-            main_profiles_idx = df[
-                df["Stok Kodu"].str.contains("Ana Profiller Toplamı", na=False)
-            ].index[0]
-            main_profiles = df.loc[: main_profiles_idx - 1].copy()
+            groups = {}
+            temp_group_items = []
+            current_group_name = None
 
-            # Get tail data
+            # Exclude last 3 rows
+            df_without_tail = df.iloc[:-3]
+
+            for idx, row in df_without_tail.iterrows():
+                stock_code = str(row["Stok Kodu"])
+
+                # if 'Toplamı' in stock_code:
+                if not stock_code.startswith("#"):
+                    current_group_name = stock_code.replace(" Toplamı", "")
+                    groups[current_group_name] = temp_group_items
+                    temp_group_items = []
+                    current_group_name = None
+                elif stock_code.startswith("#"):
+                    temp_group_items.append(row)
+
+            if temp_group_items:
+                groups["Ungrouped"] = temp_group_items
+
             tail = df.tail(3).copy()
-            filtered_df = df[df["Stok Kodu"].str.startswith("#", na=False)].copy()
-
-            # Extract item information
             item_code = f"{tail['Stok Kodu'].iloc[0]}-{tail['Stok Kodu'].iloc[1]}"
             total_price = tail["Toplam Fiyat"].iloc[0]
 
-            # Create/update item and BOM
             item = self._create_item(item_code, total_price, poz_data)
+
+            grouped_dfs = {
+                group: pd.DataFrame(items) if items else pd.DataFrame()
+                for group, items in groups.items()
+            }
+
+            main_profiles = grouped_dfs.get("Ana Profiller", pd.DataFrame())
+
+            glasses = grouped_dfs.get("Camlar", pd.DataFrame())
+            glass_stock_codes = (
+                [code.lstrip("#") for code in glasses["Stok Kodu"].tolist()]
+                if not glasses.empty
+                else []
+            )
+
+            all_items_df = pd.concat(
+                [df for group_name, df in grouped_dfs.items() if len(df) > 0]
+            )
+
             bom_result = self._create_bom(
-                item.name, poz_data.get("ADET"), main_profiles, filtered_df
+                item.name,
+                poz_data.get("ADET"),
+                main_profiles,
+                all_items_df,
+                glass_stock_codes,
             )
 
             return {
@@ -150,6 +179,13 @@ class MLYListProcessor(ExcelProcessorInterface):
                 "uom": item.stock_uom,
                 "rate": bom_result.get("total_cost"),
                 "bom_no": bom_result.get("docname"),
+                "groups": {
+                    group: {
+                        "items_count": len(items),
+                        "items": items["Stok Kodu"].tolist() if len(items) > 0 else [],
+                    }
+                    for group, items in grouped_dfs.items()
+                },
             }
 
         except Exception as e:
@@ -187,11 +223,10 @@ class MLYListProcessor(ExcelProcessorInterface):
         )
 
         item.save(ignore_permissions=True)
-        print(f"-- Item Created: {item.name} --")
         return item
 
     def _create_bom(
-        self, item_name: str, qty: float, main_profiles: Any, df: Any
+        self, item_name: str, qty: float, main_profiles: Any, df: Any, glass_stock_codes
     ) -> Dict[str, Any]:
         """Create Bill of Materials document"""
         print("-- Create BOM --")
@@ -216,6 +251,11 @@ class MLYListProcessor(ExcelProcessorInterface):
         items_table = []
         for _, row in df.iterrows():
             stock_code = row["Stok Kodu"].lstrip("#")
+            if stock_code in glass_stock_codes:
+                glass_item = self._handle_glass_item(row, item_name, stock_code)
+                items_table.append(glass_item)
+                continue
+
             if not frappe.db.exists("Item", stock_code):
                 print("Item Not Found:", stock_code)
                 raise ValueError(f"Item not found: {stock_code}")
@@ -233,7 +273,6 @@ class MLYListProcessor(ExcelProcessorInterface):
         bom.set("items", items_table)
         bom.save(ignore_permissions=True)
         bom.submit()
-        print(f"-- BOM Created: {bom.name} --")
 
         return {
             "msg": "BOM created successfully.",
@@ -243,7 +282,6 @@ class MLYListProcessor(ExcelProcessorInterface):
 
     def _create_bom_item(self, row: Dict, item: Any) -> Dict:
         """Create BOM item entry"""
-        print("-- Create BOM Item --")
         rate = get_float_value(str(row.get("Birim Fiyat", "0.0")))
         amount = get_float_value(str(row.get("Toplam Fiyat", "0.0")))
         item_qty = (
@@ -252,7 +290,6 @@ class MLYListProcessor(ExcelProcessorInterface):
             else get_float_value(row.get("Miktar"))
         )
 
-        print(f"-- BOM Item Created: {item.name} --")
         return {
             "item_code": item.get("item_code"),
             "item_name": item.get("item_name"),
@@ -262,9 +299,99 @@ class MLYListProcessor(ExcelProcessorInterface):
             "rate": rate,
         }
 
+    def _handle_glass_item(self, row: Dict, item_name: str, stock_code: str) -> Dict:
+        """Create Glass Item"""
+        print("\n")
+        print("-- Create Glass Item --")
+
+        if not frappe.db.exists("Cam Recipe", stock_code):
+            print("Cam Recipe Not Found:", stock_code)
+            raise ValueError(f"Cam Recipe not found: {stock_code}")
+
+        glass_recipe = frappe.get_doc("Cam Recipe", stock_code)
+
+        glass_item_name = f"{item_name}-{stock_code}"
+
+        if frappe.db.exists("Item", {"item_code": glass_item_name}):
+            glass_item = frappe.get_doc("Item", {"item_code": glass_item_name})
+        else:
+            glass_item = frappe.new_doc("Item")
+
+        glass_item.update(
+            {
+                "item_code": glass_item_name,
+                "item_name": glass_item_name,
+                "item_group": "Camlar",
+                "stock_uom": "Nos",
+                "descrioption": row.get("Açıklama", ""),
+                "valuation_rate": get_float_value(str(row.get("Toplam Fiyat", "0.0"))),
+            }
+        )
+
+        glass_item.save()
+
+        company = frappe.defaults.get_user_default("Company")
+        bom = frappe.new_doc("BOM")
+        bom.item = glass_item_name
+        bom.company = company
+        bom.quantity = 1
+        bom.rm_cost_as_per = "Price List"
+        bom.buying_price_list = "Standard Selling"
+
+        bom_items_table = []
+        for item in glass_recipe.cam_mutable_items:
+            uom = item.get("uom")
+            item_qty = item.get("qty", 0.0)
+            glass_qty = get_float_value(row.get("Miktar", 1.0))
+            qty = item_qty * glass_qty
+            bom_items_table.append(
+                {
+                    "item_code": item.get("item_code"),
+                    "item_name": item.get("item_code"),
+                    "uom": item.get("uom"),
+                    "qty": round(qty) if uom == "Adet" else qty,
+                }
+            )
+
+        for item in glass_recipe.cam_fixed_items:
+            bom_items_table.append(
+                {
+                    "item_code": item.get("item_code"),
+                    "item_name": item.get("item_code"),
+                    "uom": item.get("uom"),
+                    "qty": item.get("qty"),
+                }
+            )
+
+        bom.with_operations = 1
+        bom.set(
+            "operations",
+            [
+                {
+                    "operation": "Cam",
+                    "workstation": "Cam Kalite Kontrol ve Etiket",
+                    "time_in_mins": 10,
+                }
+            ],
+        )
+
+        bom.set("items", bom_items_table)
+        bom.save()
+        bom.submit()
+
+        return {
+            "item_code": glass_item.get("item_code"),
+            "item_name": glass_item.get("item_name"),
+            "description": glass_item.get("description"),
+            "uom": "Nos",
+            "qty": 1,
+            "rate": glass_item.valuation_rate,
+        }
+
+        print("\n")
+
     def _add_operations_to_bom(self, bom: Any, middle_operations: List[str]) -> None:
         """Add operations to BOM"""
-        print("-- Add Operations To Bom --")
         fixed_starting_operations = ["Profil Temin", "Sac Kesim"]
         fixed_ending_operations = ["Çıta", "Kalite", "Sevkiyat"]
         full_operations = (
@@ -283,7 +410,6 @@ class MLYListProcessor(ExcelProcessorInterface):
 
     def _get_sales_order(self, order_no: str) -> Any:
         """Get sales order document"""
-        print("-- Get Sales Order --")
         return frappe.get_last_doc(
             "Sales Order",
             {
@@ -293,7 +419,6 @@ class MLYListProcessor(ExcelProcessorInterface):
         )
 
     def _update_sales_order_taxes(self, sales_order: Any) -> None:
-        print("-- Update Sales Order Taxes --")
         """Update sales order tax information"""
         tax_account = self._get_tax_account()
 
@@ -316,7 +441,6 @@ class MLYListProcessor(ExcelProcessorInterface):
                     "description": tax_account.get("name"),
                 },
             )
-        print("-- Update Sales Order Taxes End --")
 
     def _get_tax_account(self) -> Any:
         """Get or create tax account"""
@@ -349,17 +473,10 @@ class MLYListProcessor(ExcelProcessorInterface):
         self, sales_order: Any, processed_sheets: List[Dict]
     ) -> None:
         """Update sales order with processed items"""
-        print("-- Update Sales Order Items --")
         items = []
-        # print("sheets:", processed_sheets)
         for sheet in processed_sheets:
-            print("\n\n")
-            print("sheet:", sheet)
-            print("\n\n")
             if sheet.get("data"):
                 items.append(sheet["data"])
 
         sales_order.set("items", items)
         sales_order.save(ignore_permissions=True)
-
-        print("-- Update Sales Order Items End --")
