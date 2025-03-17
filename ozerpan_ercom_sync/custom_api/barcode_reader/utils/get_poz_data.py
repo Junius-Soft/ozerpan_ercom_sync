@@ -26,6 +26,7 @@ def get_poz_data(barcode: str):
         "poz_no": tesdetay.get("poz_no"),
         "sanal_adet": tesdetay.get("sanal_adet"),
         "bayi_adi": tesdetay.get("bayi_adi"),
+        "musteri": tesdetay.get("musteri"),
         "max_sanal_adet": bom_doc.get("quantity"),
         "serial": bom_item_doc.get("custom_serial"),
         "color": bom_item_doc.get("custom_color"),
