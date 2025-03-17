@@ -410,13 +410,15 @@ class MLYListProcessor(ExcelProcessorInterface):
 
     def _get_sales_order(self, order_no: str) -> Any:
         """Get sales order document"""
-        return frappe.get_last_doc(
+        sales_order = frappe.get_last_doc(
             "Sales Order",
             {
                 "custom_ercom_order_no": order_no,
                 "status": "Draft",
             },
         )
+
+        return sales_order
 
     def _update_sales_order_taxes(self, sales_order: Any) -> None:
         """Update sales order tax information"""
