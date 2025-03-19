@@ -447,11 +447,14 @@ class GlassListProcessor(ExcelProcessorInterface):
             }
             qty = int(record.get("ADET"))
             poz_no = record.get("POZNO")
-            poz_qty = poz_quantity[str(poz_no)]
-            for i in range(poz_qty):
-                for j in range(qty):
+            virtual_qty = poz_quantity[str(poz_no)]
+
+            item_qty_per_virtual_qty = qty / virtual_qty
+
+            for i in range(virtual_qty):
+                for j in range(int(item_qty_per_virtual_qty)):
                     new_item = item_data.copy()
-                    new_item["sanal_adet"] = i + 1
+                    new_item["sanal_adet"] = f"{i + 1}/{virtual_qty}"
                     items.append(new_item)
 
         except Exception as e:
