@@ -23,7 +23,8 @@
   "poz_no",
   "aciklama",
   "status",
-  "sanal_adet"
+  "sanal_adet",
+  "row_id"
  ],
  "fields": [
   {
@@ -116,12 +117,17 @@
    "fieldname": "sanal_adet",
    "fieldtype": "Data",
    "label": "Sanal Adet"
+  },
+  {
+   "fieldname": "row_id",
+   "fieldtype": "Data",
+   "label": "Row Name"
   }
  ],
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2025-03-18 14:54:34.967063",
+ "modified": "2025-03-19 15:51:13.600584",
  "modified_by": "Administrator",
  "module": "Ozerpan Ercom Sync",
  "name": "CamListe Item",
