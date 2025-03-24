@@ -11,17 +11,13 @@ from .barcode_reader.exceptions import (
 from .barcode_reader.reader import BarcodeReader
 from .file_processor.processor import ExcelProcessingManager
 from .glass_processor.glass_processor import GlassOperationProcessor
-
-
-class GlassOperationRequest(TypedDict):
-    operation: str
-    employee: str
-    name: str
+from .glass_processor.types import GlassOperationRequest
 
 
 @frappe.whitelist()
 def process_glass_operation() -> Dict[str, Any]:
     try:
+        print("-- Process Glass Operation --")
         operation_data = frappe.form_dict
 
         if operation_data.get("operation") != "Cam":
@@ -40,8 +36,7 @@ def process_glass_operation() -> Dict[str, Any]:
             }
 
         glass_processor = GlassOperationProcessor()
-        result = glass_processor.process(glass_item, operation_data["employee"])
-        # frappe.throw("-- Process Glass Operation --")
+        result = glass_processor.process(operation_data)
 
         return {
             "status": "success",
@@ -58,16 +53,18 @@ def process_glass_operation() -> Dict[str, Any]:
 
 def find_glasses(data: GlassOperationRequest) -> Optional[Dict]:
     print("\n\n\n---Find Glasses---\n\n\n")
-    current_glass = frappe.get_doc("CamListe Item", data["name"])
+    current_glass = frappe.get_doc("CamListe", data["glass_name"])
     if not current_glass:
         frappe.throw(_("Glass not found"))
 
+    order_no = data["glass_name"].split("-")[0]
+
     filters = {
-        "parent": current_glass.parent,
+        "order_no": order_no,
         "poz_no": current_glass.poz_no,
     }
 
-    related_glasses = frappe.get_all("CamListe Item", filters=filters, fields=["*"])
+    related_glasses = frappe.get_all("CamListe", filters=filters, fields=["*"])
 
     return {"current_glass": current_glass, "related_glasses": related_glasses}
 

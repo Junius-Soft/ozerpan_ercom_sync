@@ -30,7 +30,7 @@ class CorrectionOperation:
 class QualityData:
     criteria: List[QualityCriterion]
     overall_notes: Optional[str]
-    required_operations: Optional[List[CorrectionOperation]]
+    required_operations: Optional[List[CorrectionOperation]] = None
 
     def has_failures(self) -> bool:
         return any(not criterion.get("passed") for criterion in self.criteria)

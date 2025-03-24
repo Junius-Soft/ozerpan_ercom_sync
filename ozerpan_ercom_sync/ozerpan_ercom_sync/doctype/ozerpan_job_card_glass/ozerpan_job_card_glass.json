@@ -1,0 +1,78 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-03-21 15:35:17.798712",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "section_break_ih8k",
+  "order_no",
+  "stock_code",
+  "poz_no",
+  "sanal_adet",
+  "status",
+  "glass_ref",
+  "quality_data"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_break_ih8k",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "poz_no",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Poz No"
+  },
+  {
+   "fieldname": "sanal_adet",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Sanal Adet"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Pending\nIn Progress\nIn Correction\nCompleted"
+  },
+  {
+   "fieldname": "quality_data",
+   "fieldtype": "JSON",
+   "label": "Quality Data"
+  },
+  {
+   "fieldname": "order_no",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Order No"
+  },
+  {
+   "fieldname": "stock_code",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Stock Code"
+  },
+  {
+   "fieldname": "glass_ref",
+   "fieldtype": "Link",
+   "label": "Glass",
+   "options": "CamListe"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2025-03-24 12:01:38.579588",
+ "modified_by": "Administrator",
+ "module": "Ozerpan Ercom Sync",
+ "name": "Ozerpan Job Card Glass",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

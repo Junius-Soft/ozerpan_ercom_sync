@@ -1,0 +1,60 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-03-21 14:21:17.115058",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "section_break_vj80",
+  "job_card_ref",
+  "status",
+  "operation",
+  "is_corrective"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_break_vj80",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "job_card_ref",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Job Card",
+   "options": "Job Card"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Pending\nIn Progress\nIn Correction\nCompleted"
+  },
+  {
+   "fieldname": "operation",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Operation"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_corrective",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Is Corrective"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2025-03-21 14:27:25.700786",
+ "modified_by": "Administrator",
+ "module": "Ozerpan Ercom Sync",
+ "name": "CamListe Job Card",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
