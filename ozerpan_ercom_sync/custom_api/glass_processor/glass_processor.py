@@ -146,12 +146,11 @@ class GlassOperationProcessor:
                 }
             ]
 
-            # self.update_glass_job_card_status(
-            #     current_glass.glass_ref,
-            #     quality_job_card.name,
-            #     "In Correction",
-            #     quality_data,
-            # )
+            self.update_glass_job_card_status(
+                glass_ref=current_glass.glass_ref,
+                job_card_name=quality_job_card.name,
+                quality_data=quality_data,
+            )
             correction_job.set("custom_glasses", glasses)
             correction_job.insert()
             return correction_job
@@ -239,18 +238,20 @@ class GlassOperationProcessor:
         self,
         glass_ref: str,
         job_card_name: str,
-        status: str,
+        status: Optional[str] = None,
         quality_data: Optional[QualityData] = None,
     ) -> None:
+        print("Quality Data", quality_data)
         glass = frappe.get_doc("CamListe", glass_ref)
         if quality_data:
             glass.quality_data = json.dumps(quality_data.__dict__)
 
-        for jc in glass.job_cards:
-            if jc.job_card_ref == job_card_name:
-                jc.status = status
-                glass.save()
-                break
+        if status:
+            for jc in glass.job_cards:
+                if jc.job_card_ref == job_card_name:
+                    jc.status = status
+                    glass.save()
+                    break
 
     def _is_sanal_adet_group_complete(self, job_card: any, glass: Dict) -> bool:
         job_card = frappe.get_doc("Job Card", job_card.name)
