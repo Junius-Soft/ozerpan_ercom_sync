@@ -5,6 +5,7 @@ import frappe
 from frappe import _
 
 from ozerpan_ercom_sync.custom_api.barcode_reader.models.quality_data import QualityData
+from ozerpan_ercom_sync.custom_api.glass_processor.utils import get_job_card
 
 from ..barcode_reader.utils.job_card import (
     complete_job,
@@ -22,12 +23,10 @@ class GlassOperationProcessor:
         raw_quality_data = operation_data.quality_data
         glass_name = operation_data.glass_name
         quality_data = QualityData(**raw_quality_data) if raw_quality_data else None
-
-        job_card = self._get_job_card(glass_name)
+        job_card = get_job_card(glass_name)
         current_glass = self._get_current_glass(job_card, glass_name)
         related_glasses = self._get_related_glasses(job_card, current_glass)
         employee = operation_data["employee"]
-        print("Glass:", current_glass)
 
         if current_glass.status == "Completed" and not quality_data:
             return {
@@ -74,14 +73,15 @@ class GlassOperationProcessor:
                 job_card, current_glass, quality_data, employee
             )
 
-        # return self._handle_quality_success(
-        #     job_card, current_glass, quality_data, employee
-        # )
+        glass_quality_data = current_glass.quality_data
 
         return {
             "status": "success",
             "message": _("Quality control completed"),
             "job_card": job_card.name,
+            "quality_data": json.loads(glass_quality_data)
+            if glass_quality_data
+            else None,
         }
 
     def _handle_quality_failure(
@@ -91,12 +91,73 @@ class GlassOperationProcessor:
         quality_data: QualityData,
         employee: str,
     ) -> Dict[str, Any]:
-        correction_job = self._create_correction_job(job_card, current_glass)
+        print("\n\n\n-- Handle Quality Failure --")
+        correction_job = self._create_correction_job(
+            job_card, current_glass, quality_data
+        )
+
+        glass_quality_data = current_glass.quality_data
+        job_card.save()
+
+        return {
+            "status": "failed",
+            "quality_status": "failed",
+            "correction_job": correction_job.name,
+            "quality_data": json.loads(glass_quality_data)
+            if glass_quality_data
+            else None,
+        }
 
     def _create_correction_job(
-        self, job_card: Dict[str, Any], current_glass: Dict[str, Any]
+        self,
+        quality_job_card: Dict[str, Any],
+        current_glass: Dict[str, Any],
+        quality_data: Dict[str, Any],
     ) -> Dict[str, any]:
-        pass
+        try:
+            print("\n\n\n-- Create Correction Job --")
+
+            correction_job = frappe.new_doc("Job Card")
+            correction_job.update(
+                {
+                    "work_order": quality_job_card.work_order,
+                    "operation": quality_job_card.operation,
+                    "production_item": quality_job_card.production_item,
+                    "for_quantity": 1,
+                    "is_corrective_job_card": 1,
+                    "for_job_card": quality_job_card.name,
+                    "workstation": quality_job_card.workstation,
+                    "workstation_type": quality_job_card.workstation_type,
+                    "wip_warehouse": quality_job_card.wip_warehouse,
+                    "custom_target_sanal_adet": current_glass.sanal_adet,
+                    "custom_quality_job_card": quality_job_card.name,
+                    "remarks": quality_data.overall_notes,
+                }
+            )
+            glasses = [
+                {
+                    "glass_ref": current_glass.get("glass_ref"),
+                    "order_no": current_glass.get("order_no"),
+                    "stock_code": current_glass.get("stock_code"),
+                    "poz_no": current_glass.get("poz_no"),
+                    "sanal_adet": current_glass.get("sanal_adet"),
+                    "status": "Pending",
+                    "quality_data": current_glass.get("quality_data"),
+                }
+            ]
+
+            # self.update_glass_job_card_status(
+            #     current_glass.glass_ref,
+            #     quality_job_card.name,
+            #     "In Correction",
+            #     quality_data,
+            # )
+            correction_job.set("custom_glasses", glasses)
+            correction_job.insert()
+            return correction_job
+        except Exception as e:
+            frappe.log_error(f"Error creating correction job: {str(e)}")
+            frappe.throw(_("Failed to create correction job"))
 
     def _handle_pending_item(
         self,
@@ -106,8 +167,6 @@ class GlassOperationProcessor:
         employee: str,
     ) -> Dict[str, Any]:
         print("--- Handle Pending Item ---")
-        print("Current Glass:", current_glass)
-        print("Related Glasses:", related_glasses)
         in_progress_glasses = [g for g in related_glasses if g.status == "In Progress"]
 
         if in_progress_glasses:
@@ -124,10 +183,15 @@ class GlassOperationProcessor:
         self._set_glass_in_progress(job_card, current_glass)
         update_job_card_status(job_card, "Work In Progress", employee)
 
+        glass_quality_data = current_glass.quality_data
+
         return {
             "status": "in_progress",
             "job_card": job_card.name,
-            "glass": current_glass,
+            "glass": current_glass.glass_ref,
+            "quality_data": json.loads(glass_quality_data)
+            if glass_quality_data
+            else None,
         }
 
     def _handle_in_progress_item(
@@ -137,7 +201,6 @@ class GlassOperationProcessor:
     ) -> Dict[str, Any]:
         print("\n\n\n-- Handle In Progress --")
 
-        # TODO: Continue
         self._complete_glasses(job_card, [current_glass])
         if self._is_sanal_adet_group_complete(job_card, current_glass):
             complete_job(job_card, 1)
@@ -148,10 +211,15 @@ class GlassOperationProcessor:
         else:
             update_job_card_status(job_card, "On Hold")
 
+        glass_quality_data = current_glass.quality_data
+
         return {
-            "status": "success",
-            "message": _("Operation completed"),
+            "status": "completed",
             "job_card": job_card.name,
+            "glass": current_glass.glass_ref,
+            "quality_data": json.loads(glass_quality_data)
+            if glass_quality_data
+            else None,
         }
 
     def _complete_glasses(self, job_card: Any, glasses: List[Dict]):
@@ -191,29 +259,11 @@ class GlassOperationProcessor:
         ]
         return all(g.status == "Completed" for g in related_glasses)
 
-    def _get_job_card(self, glass_name: Dict[str, Any]) -> Any:
-        parts = glass_name.split("-")
-        order_no = parts[0]
-        poz_no = parts[1]
-        print("Parts:", parts)
-        job_card = frappe.get_doc(
-            "Job Card",
-            {
-                "production_item": f"{order_no}-{poz_no}",
-                "operation": "Cam",
-                "docstatus": ["!=", 2],
-            },
-        )
-        return job_card
-
     def _set_glass_in_progress(self, job_card: Any, glass: Dict) -> None:
-        print("\n\nglass_ref:", job_card.custom_glasses[0].as_dict())
-        print("glass:", glass.as_dict())
         glass_row = next(
             (g for g in job_card.custom_glasses if g.glass_ref == glass.glass_ref),
             None,
         )
-        print("\n\n\nGlass Row:", glass_row)
         if glass_row:
             glass_row.status = "In Progress"
             self.update_glass_job_card_status(

@@ -14,6 +14,7 @@ def before_save(doc, method) -> None:
     elif operation_name == "Cam":
         if doc.is_corrective_job_card:
             handle_glass_corrective_job_card(doc, order_no, poz_no)
+            pass
         else:
             handle_glass_regular_job_card(doc, order_no, poz_no)
     else:
@@ -26,6 +27,26 @@ def before_save(doc, method) -> None:
 def handle_glass_corrective_job_card(doc, order_no: str, poz_no: str) -> None:
     if not doc.custom_target_sanal_adet:
         return
+
+    glass_list = doc.custom_glasses
+    glasses = []
+    for glass in glass_list:
+        glass_doc = frappe.get_doc("CamListe", glass.glass_ref)
+        job_card = get_glass_job_card_data(doc, glass_doc)
+
+        glasses.append(
+            {
+                "glass_ref": glass.get("glass_ref"),
+                "order_no": glass.get("order_no"),
+                "stock_code": glass.get("stock_code"),
+                "poz_no": glass.get("poz_no"),
+                "sanal_adet": glass.get("sanal_adet"),
+                "status": job_card.get("status", "Pending"),
+                "quality_data": glass.get("quality_data"),
+            }
+        )
+
+    doc.set("custom_glasses", glasses)
 
 
 def handle_glass_regular_job_card(doc, order_no: str, poz_no: str) -> None:
@@ -52,13 +73,9 @@ def handle_glass_regular_job_card(doc, order_no: str, poz_no: str) -> None:
 
 
 def get_glass_job_card_data(doc, glass: Dict) -> Dict[str, str]:
+    print("-- Get Glass Job Card Data --")
     for jc in glass.get("job_cards", []):
         if jc.get("job_card_ref") == doc.name:
-            if doc.get("operation"):
-                jc["operation"] = doc.operation
-            if doc.get("is_corrective_job_card"):
-                jc["is_corrective"] = 1
-
             return {
                 "status": jc.get("status", "Pending"),
                 "operation": doc.operation,

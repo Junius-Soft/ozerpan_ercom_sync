@@ -3,10 +3,6 @@ import frappe
 
 def after_insert(doc, method):
     print("\n\n\n-- Job Card After Insert --")
-    # print("Job Card Doc Fields:")
-    # for field in doc.as_dict():
-    #     print(f"{field}: {doc.get(field)}")
-
     if doc.operation == "Cam":
         add_job_cards_into_camliste(doc)
     else:
