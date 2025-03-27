@@ -1,34 +1,142 @@
 {
  "actions": [],
+ "autoname": "format:{order_no}-{poz_no}-{###}",
  "creation": "2025-02-14 14:45:09.180492",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
   "order_no",
-  "items"
+  "stok_kodu",
+  "bm2",
+  "tm2",
+  "menfez",
+  "karolaj",
+  "column_break_dqwx",
+  "cari_kod",
+  "musteri",
+  "cari_unvan",
+  "genislik",
+  "yukseklik",
+  "kucuk_cam",
+  "column_break_gx1g",
+  "poz_no",
+  "aciklama",
+  "sanal_adet",
+  "section_break_j3kt",
+  "job_cards",
+  "quality_data"
  ],
  "fields": [
   {
-   "fieldname": "items",
-   "fieldtype": "Table",
-   "label": "Items",
-   "options": "CamListe Item"
-  },
-  {
    "fieldname": "order_no",
    "fieldtype": "Data",
-   "in_list_view": 1,
    "label": "Order No",
-   "reqd": 1,
-   "unique": 1
+   "reqd": 1
+  },
+  {
+   "fieldname": "stok_kodu",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Stok Kodu"
+  },
+  {
+   "fieldname": "bm2",
+   "fieldtype": "Float",
+   "label": "BM2"
+  },
+  {
+   "fieldname": "tm2",
+   "fieldtype": "Float",
+   "label": "TM2"
+  },
+  {
+   "fieldname": "menfez",
+   "fieldtype": "Int",
+   "label": "Menfez"
+  },
+  {
+   "fieldname": "karolaj",
+   "fieldtype": "Int",
+   "label": "Karolaj"
+  },
+  {
+   "fieldname": "column_break_dqwx",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "cari_kod",
+   "fieldtype": "Data",
+   "label": "Cari Kod"
+  },
+  {
+   "fieldname": "musteri",
+   "fieldtype": "Data",
+   "label": "Musteri"
+  },
+  {
+   "fieldname": "cari_unvan",
+   "fieldtype": "Data",
+   "label": "Cari Unvan"
+  },
+  {
+   "fieldname": "genislik",
+   "fieldtype": "Float",
+   "label": "Genislik"
+  },
+  {
+   "fieldname": "yukseklik",
+   "fieldtype": "Float",
+   "label": "Yukseklik"
+  },
+  {
+   "fieldname": "kucuk_cam",
+   "fieldtype": "Data",
+   "label": "Kucuk Cam"
+  },
+  {
+   "fieldname": "column_break_gx1g",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "poz_no",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Poz No"
+  },
+  {
+   "fieldname": "aciklama",
+   "fieldtype": "Small Text",
+   "label": "Aciklama"
+  },
+  {
+   "fieldname": "sanal_adet",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Sanal Adet"
+  },
+  {
+   "fieldname": "job_cards",
+   "fieldtype": "Table",
+   "label": "Job Cards",
+   "options": "CamListe Job Card"
+  },
+  {
+   "fieldname": "section_break_j3kt",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "quality_data",
+   "fieldtype": "JSON",
+   "label": "Quality Data"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-02-18 15:19:18.131820",
+ "modified": "2025-03-24 16:30:18.292695",
  "modified_by": "Administrator",
  "module": "Ozerpan Ercom Sync",
  "name": "CamListe",
+ "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
   {

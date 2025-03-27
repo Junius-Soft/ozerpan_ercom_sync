@@ -9,21 +9,87 @@ def before_save(doc, method) -> None:
     operation_name = doc.operation
     order_no, poz_no = production_item.split("-")
 
-    if (
-        operation_name == "Profil Temin"
-        or operation_name == "Sac Kesim"
-        or operation_name == "Cam"
-    ):
+    if operation_name == "Profil Temin" or operation_name == "Sac Kesim":
+        return
+    elif operation_name == "Cam":
+        if doc.is_corrective_job_card:
+            handle_glass_corrective_job_card(doc, order_no, poz_no)
+            pass
+        else:
+            handle_glass_regular_job_card(doc, order_no, poz_no)
+    else:
+        if doc.is_corrective_job_card:
+            handle_barcode_corrective_job_card(doc, order_no, poz_no)
+        else:
+            handle_barcode_regular_job_card(doc, order_no, poz_no, operation_name)
+
+
+def handle_glass_corrective_job_card(doc, order_no: str, poz_no: str) -> None:
+    if not doc.custom_target_sanal_adet:
         return
 
-    # Handle corrective job cards differently
-    if doc.is_corrective_job_card:
-        handle_corrective_job_card(doc, order_no, poz_no)
-    else:
-        handle_regular_job_card(doc, order_no, poz_no, operation_name)
+    glass_list = doc.custom_glasses
+    glasses = []
+    for glass in glass_list:
+        glass_doc = frappe.get_doc("CamListe", glass.glass_ref)
+        job_card = get_glass_job_card_data(doc, glass_doc)
+
+        glasses.append(
+            {
+                "glass_ref": glass.get("glass_ref"),
+                "order_no": glass.get("order_no"),
+                "stock_code": glass.get("stock_code"),
+                "poz_no": glass.get("poz_no"),
+                "sanal_adet": glass.get("sanal_adet"),
+                "status": job_card.get("status", "Pending"),
+                "quality_data": glass.get("quality_data"),
+            }
+        )
+
+    doc.set("custom_glasses", glasses)
 
 
-def handle_corrective_job_card(doc, order_no: str, poz_no: str) -> None:
+def handle_glass_regular_job_card(doc, order_no: str, poz_no: str) -> None:
+    glasses = []
+    glass_list = get_glass_list(order_no, poz_no)
+
+    for glass in glass_list:
+        job_card = get_glass_job_card_data(doc, glass)
+
+        glasses.append(
+            {
+                "glass_ref": glass.get("name"),
+                "order_no": glass.get("order_no"),
+                "stock_code": glass.get("stock_code"),
+                "poz_no": glass.get("poz_no"),
+                "sanal_adet": glass.get("sanal_adet"),
+                "status": job_card.get("status", "Pending"),
+                "quality_data": glass.get("quality_data"),
+            }
+        )
+
+    glasses = sorted(glasses, key=lambda x: x["sanal_adet"])
+    doc.set("custom_glasses", glasses)
+
+
+def get_glass_job_card_data(doc, glass: Dict) -> Dict[str, str]:
+    print("-- Get Glass Job Card Data --")
+    for jc in glass.get("job_cards", []):
+        if jc.get("job_card_ref") == doc.name:
+            return {
+                "status": jc.get("status", "Pending"),
+                "operation": doc.operation,
+                "is_corrective": 1 if doc.is_corrective_job_card else 0,
+            }
+
+    return {
+        "status": "Pending",
+        "operation": doc.operation,
+        "is_corrective": 1 if doc.is_corrective_job_card else 0,
+    }
+
+
+def handle_barcode_corrective_job_card(doc, order_no: str, poz_no: str) -> None:
     """Handle barcode assignment for corrective job cards"""
     if not doc.custom_target_sanal_adet:
         return
@@ -52,7 +118,9 @@ def handle_corrective_job_card(doc, order_no: str, poz_no: str) -> None:
     doc.set("custom_barcodes", barcodes)
 
 
-def handle_regular_job_card(doc, order_no: str, poz_no: str, operation_name: str) -> None:
+def handle_barcode_regular_job_card(
+    doc, order_no: str, poz_no: str, operation_name: str
+) -> None:
     """Handle barcode assignment for regular job cards"""
     barcodes = []
     tesdetay_list = get_tesdetay_list(order_no, poz_no)
@@ -185,6 +253,73 @@ def get_tesdetay_list(
 
         if row.job_card_ref:
             current_doc["operation_states"].append(
+                {
+                    "job_card_ref": row.job_card_ref,
+                    "status": row.status,
+                    "operation": row.operation,
+                    "is_corrective": row.is_corrective,
+                    "idx": row.idx,
+                }
+            )
+
+    return organized_data
+
+
+def get_glass_list(
+    order_no: str, poz_no: str, target_sanal_adet: Optional[str] = None
+) -> List[Dict]:
+    filters = {"order_no": order_no, "poz_no": poz_no}
+
+    if target_sanal_adet is not None:
+        filters["sanal_adet"] = target_sanal_adet
+
+    results = frappe.db.sql(
+        """
+        SELECT
+            gl.name,
+            gl.order_no,
+            gl.stok_kodu as stock_code,
+            gl.poz_no,
+            gl.sanal_adet,
+            gl.quality_data,
+            jc.job_card_ref,
+            jc.status,
+            jc.operation,
+            jc.is_corrective,
+            jc.idx
+        FROM `tabCamListe` gl
+        LEFT JOIN `tabCamListe Job Card` jc ON gl.name = jc.parent
+        WHERE gl.order_no = %(order_no)s
+        AND gl.poz_no = %(poz_no)s
+        {sanal_adet_filter}
+        ORDER BY gl.name, jc.idx
+        """.format(
+            sanal_adet_filter="AND gl.sanal_adet = %(sanal_adet)s"
+            if target_sanal_adet is not None
+            else ""
+        ),
+        filters,
+        as_dict=1,
+    )
+
+    current_doc = None
+    organized_data = []
+
+    for row in results:
+        if current_doc is None or current_doc["name"] != row.name:
+            current_doc = {
+                "name": row.name,
+                "order_no": row.order_no,
+                "poz_no": row.poz_no,
+                "sanal_adet": row.sanal_adet,
+                "stock_code": row.stock_code,
+                "quality_data": row.quality_data,
+                "job_cards": [],
+            }
+            organized_data.append(current_doc)
+
+        if row.job_card_ref:
+            current_doc["job_cards"].append(
                 {
                     "job_card_ref": row.job_card_ref,
                     "status": row.status,

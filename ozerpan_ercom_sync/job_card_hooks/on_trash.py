@@ -10,7 +10,54 @@ def on_trash(doc, method) -> None:
     """
     print("\n\n\n-- Job Card On Trash --")
     remove_job_card_link_from_tesdetay(doc)
+    remove_job_card_link_from_glasslist(doc)
     print("\n\n\n")
+
+
+def remove_job_card_link_from_glasslist(job_card_doc) -> None:
+    glasslist_docs = get_affected_glasslist_docs(job_card_doc)
+
+    for g in glasslist_docs:
+        modified = False
+        job_cards_to_remove = []
+
+        for jc in g.job_cards:
+            if jc.job_card_ref == job_card_doc.name:
+                job_cards_to_remove.append(jc)
+                modified = True
+        for jc in job_cards_to_remove:
+            g.job_cards.remove(jc)
+
+        if modified:
+            try:
+                g.save()
+            except Exception as e:
+                frappe.log_error(
+                    f"Error updating GlassList {g.name} while deleting job card {job_card_doc.name}: {str(e)}"
+                )
+
+
+def get_affected_glasslist_docs(job_card_doc) -> List[Dict]:
+    glass_refs = {g.glass_ref for g in job_card_doc.custom_glasses if g.glass_ref}
+
+    if job_card_doc.is_corrective_job_card:
+        additional_refs = frappe.db.sql(
+            """
+            SELECT DISTINCT parent
+            FROM `tabCamListe Job Card`
+            WHERE job_card_ref = %s
+            """,
+            job_card_doc.name,
+            as_dict=1,
+        )
+
+        glass_refs.update({ref.parent for ref in additional_refs})
+
+    return [
+        frappe.get_doc("CamListe", ref)
+        for ref in glass_refs
+        if frappe.db.exists("CamListe", ref)
+    ]
 
 
 def remove_job_card_link_from_tesdetay(job_card_doc) -> None:
@@ -50,16 +97,22 @@ def get_affected_tesdetay_docs(job_card_doc) -> List[Dict]:
     Handles both regular and corrective cases
     """
     # Get TesDetay references from custom_barcodes
-    tesdetay_refs = {b.tesdetay_ref for b in job_card_doc.custom_barcodes if b.tesdetay_ref}
+    tesdetay_refs = {
+        b.tesdetay_ref for b in job_card_doc.custom_barcodes if b.tesdetay_ref
+    }
 
     # For corrective job cards, also check operation states directly
     if job_card_doc.is_corrective_job_card:
         # Get additional TesDetay documents that might reference this job card
-        additional_refs = frappe.db.sql("""
+        additional_refs = frappe.db.sql(
+            """
             SELECT DISTINCT parent
             FROM `tabTesDetay Operation Status`
             WHERE job_card_ref = %s
-        """, job_card_doc.name, as_dict=1)
+        """,
+            job_card_doc.name,
+            as_dict=1,
+        )
 
         tesdetay_refs.update({ref.parent for ref in additional_refs})
 

@@ -118,7 +118,7 @@ def get_tesdetay_data(pool):
         ORDER BY td.OTONO DESC
         LIMIT 5000
     """
-        # WHERE td.SIPARISNO = "S404325"
+    # WHERE td.SIPARISNO = "S404325"
     results = pool.execute_query(query)
     return results
 

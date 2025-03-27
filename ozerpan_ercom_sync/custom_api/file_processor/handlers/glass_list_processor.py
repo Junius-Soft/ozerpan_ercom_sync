@@ -55,7 +55,6 @@ class GlassListProcessor(ExcelProcessorInterface):
                 raise ValueError(_("Please upload MLY file first."))
 
             total_processed = 0
-            total_created = 0
             processed_sheets = []
             all_asc_file_paths = {}
             poz_quantity: Dict = {}
@@ -77,7 +76,6 @@ class GlassListProcessor(ExcelProcessorInterface):
 
                 processed_sheets.append(sheet_result)
                 total_processed += result.get("processed_records")
-                total_created += result.get("created_records", 0)
 
                 # Merge ASC file paths dictionaries
                 all_asc_file_paths.update(asc_file_paths)
@@ -95,7 +93,6 @@ class GlassListProcessor(ExcelProcessorInterface):
                 "order_no": file_info.order_no,
                 "sheet_count": len(sheets),
                 "total_processed": total_processed,
-                "total_created": total_created,
                 "sheets": processed_sheets,
                 "asc_file_paths": all_asc_file_paths,
                 "asc_file_count": len(all_asc_file_paths),
@@ -382,28 +379,21 @@ class GlassListProcessor(ExcelProcessorInterface):
 
             records = df.to_dict("records")
 
-            if frappe.db.exists("CamListe", {"order_no": file_info.order_no}):
-                cam_liste_doc = frappe.get_doc(
-                    "CamListe", {"order_no": file_info.order_no}
-                )
-            else:
-                cam_liste_doc = frappe.new_doc("CamListe")
-                cam_liste_doc.order_no = file_info.order_no
+            glass_list_array = frappe.get_all(
+                "CamListe", filters={"order_no": file_info.order_no}
+            )
+            if glass_list_array:
+                for cam_liste in glass_list_array:
+                    frappe.delete_doc("CamListe", cam_liste.name)
 
-            items = []
-            created_count = 0
+            processed_items = []
 
             for record in records:
                 if self._is_valid_record(record):
-                    self._process_record(items, record, poz_quantity)
-                    created_count += 1
-
-            cam_liste_doc.set("items", items)
-            cam_liste_doc.save()
+                    self._process_record(processed_items, record, poz_quantity)
 
             return {
-                "processed_records": len(items),
-                "created_records": created_count,
+                "processed_records": len(processed_items),
             }
         except Exception as e:
             frappe.log_error(
@@ -430,6 +420,7 @@ class GlassListProcessor(ExcelProcessorInterface):
     def _process_record(self, items: List[Dict], record: Dict, poz_quantity: Dict):
         try:
             item_data = {
+                "order_no": record.get("SIPARISNO", ""),
                 "stok_kodu": self._clean_stock_code(record["STOKKODU"]),
                 "aciklama": record.get("ACIKLAMA"),
                 "gen": record.get("GEN", 0),
@@ -447,12 +438,22 @@ class GlassListProcessor(ExcelProcessorInterface):
             }
             qty = int(record.get("ADET"))
             poz_no = record.get("POZNO")
-            poz_qty = poz_quantity[str(poz_no)]
-            for i in range(poz_qty):
-                for j in range(qty):
+            virtual_qty = poz_quantity[str(poz_no)]
+
+            item_qty_per_virtual_qty = qty / virtual_qty
+
+            for i in range(virtual_qty):
+                for j in range(int(item_qty_per_virtual_qty)):
                     new_item = item_data.copy()
-                    new_item["sanal_adet"] = i + 1
-                    items.append(new_item)
+                    doc = frappe.get_doc(
+                        {
+                            "doctype": "CamListe",
+                            "sanal_adet": f"{i + 1}/{virtual_qty}",
+                            **new_item,
+                        }
+                    )
+                    doc.insert()
+                    items.append(doc)
 
         except Exception as e:
             frappe.log_error(
