@@ -1,6 +1,6 @@
 {
  "actions": [],
- "autoname": "format:{order_no}-{poz_no}-{###}",
+ "autoname": "format:{order_no}-{poz_no}-{#####}",
  "creation": "2025-02-14 14:45:09.180492",
  "doctype": "DocType",
  "engine": "InnoDB",
@@ -132,7 +132,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-03-24 16:30:18.292695",
+ "modified": "2025-03-31 18:44:43.898887",
  "modified_by": "Administrator",
  "module": "Ozerpan Ercom Sync",
  "name": "CamListe",

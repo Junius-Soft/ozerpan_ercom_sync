@@ -40,9 +40,6 @@ class GlassOperationProcessor:
             return self._handle_pending_item(
                 job_card, current_glass, related_glasses, employee
             )
-        elif current_glass.status == "In Progress":
-            print("--In Progress--")
-            return self._handle_in_progress_item(job_card, current_glass)
         elif quality_data:
             print("--Quality Control--")
             return self._handle_quality_control(
@@ -166,26 +163,24 @@ class GlassOperationProcessor:
         employee: str,
     ) -> Dict[str, Any]:
         print("--- Handle Pending Item ---")
-        in_progress_glasses = [g for g in related_glasses if g.status == "In Progress"]
 
-        if in_progress_glasses:
-            self._complete_glasses(job_card, in_progress_glasses)
-            if self._is_sanal_adet_group_complete(job_card, in_progress_glasses[0]):
-                complete_job(job_card, 1)
-                if is_job_fully_complete(job_card):
-                    submit_job_card(job_card)
-                else:
-                    update_job_card_status(job_card, "On Hold")
+        if job_card.status != "Work In Progress":
+            update_job_card_status(job_card, "Work In Progress", employee)
+
+        self._complete_glasses(job_card, [current_glass])
+        if self._is_sanal_adet_group_complete(job_card, current_glass):
+            complete_job(job_card, 1)
+            if is_job_fully_complete(job_card):
+                submit_job_card(job_card)
             else:
                 update_job_card_status(job_card, "On Hold")
-
-        self._set_glass_in_progress(job_card, current_glass)
-        update_job_card_status(job_card, "Work In Progress", employee)
+        else:
+            update_job_card_status(job_card, "On Hold")
 
         glass_quality_data = current_glass.quality_data
 
         return {
-            "status": "in_progress",
+            "status": "completed",
             "job_card": job_card.name,
             "glass": current_glass.glass_ref,
             "quality_data": json.loads(glass_quality_data)
@@ -241,7 +236,6 @@ class GlassOperationProcessor:
         status: Optional[str] = None,
         quality_data: Optional[QualityData] = None,
     ) -> None:
-        print("Quality Data", quality_data)
         glass = frappe.get_doc("CamListe", glass_ref)
         if quality_data:
             glass.quality_data = json.dumps(quality_data.__dict__)
@@ -259,19 +253,6 @@ class GlassOperationProcessor:
             g for g in job_card.custom_glasses if g.sanal_adet == glass.sanal_adet
         ]
         return all(g.status == "Completed" for g in related_glasses)
-
-    def _set_glass_in_progress(self, job_card: Any, glass: Dict) -> None:
-        glass_row = next(
-            (g for g in job_card.custom_glasses if g.glass_ref == glass.glass_ref),
-            None,
-        )
-        if glass_row:
-            glass_row.status = "In Progress"
-            self.update_glass_job_card_status(
-                glass_row.glass_ref, job_card.name, "In Progress"
-            )
-
-        job_card.save()
 
     def _get_related_glasses(self, job_card: Any, current_glass: Dict) -> List[Dict]:
         return [g for g in job_card.custom_glasses]

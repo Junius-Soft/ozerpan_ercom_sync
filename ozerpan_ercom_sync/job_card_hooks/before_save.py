@@ -73,7 +73,6 @@ def handle_glass_regular_job_card(doc, order_no: str, poz_no: str) -> None:
 
 
 def get_glass_job_card_data(doc, glass: Dict) -> Dict[str, str]:
-    print("-- Get Glass Job Card Data --")
     for jc in glass.get("job_cards", []):
         if jc.get("job_card_ref") == doc.name:
             return {

@@ -373,6 +373,7 @@ class GlassListProcessor(ExcelProcessorInterface):
         self, sheet: SheetData, file_info: ExcelFileInfo, poz_quantity: Dict
     ) -> Dict[str, Any]:
         try:
+            print("--Process Glass List Data--")
             df = sheet.data.replace({np.nan: None})
             df = df.dropna(how="all")
             df = df.dropna(axis=1, how="all")
@@ -418,13 +419,14 @@ class GlassListProcessor(ExcelProcessorInterface):
         return stock_code.replace("#", "").strip()
 
     def _process_record(self, items: List[Dict], record: Dict, poz_quantity: Dict):
+        print("\n\n\n--Process Record--")
         try:
             item_data = {
                 "order_no": record.get("SIPARISNO", ""),
                 "stok_kodu": self._clean_stock_code(record["STOKKODU"]),
                 "aciklama": record.get("ACIKLAMA"),
-                "gen": record.get("GEN", 0),
-                "yuk": record.get("YUK", 0),
+                "genislik": record.get("GEN", 0),
+                "yukseklik": record.get("YUK", 0),
                 "bm2": record.get("BM2", 0),
                 "tm2": record.get("TM2", 0),
                 "poz_no": record.get("POZNO"),
