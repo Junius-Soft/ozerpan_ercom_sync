@@ -249,6 +249,7 @@ class MLYListProcessor(ExcelProcessorInterface):
 
         # Process BOM items
         items_table = []
+        non_existent_items = []
         for _, row in df.iterrows():
             stock_code = row["Stok Kodu"].lstrip("#")
             if stock_code in glass_stock_codes:
@@ -258,7 +259,16 @@ class MLYListProcessor(ExcelProcessorInterface):
 
             if not frappe.db.exists("Item", stock_code):
                 print("Item Not Found:", stock_code)
-                raise ValueError(f"Item not found: {stock_code}")
+                non_existent_items.append(
+                    {
+                        "stock_code": stock_code,
+                        "order_no": item_name.split("-")[0],
+                        "poz_no": item_name.split("-")[1],
+                    }
+                )
+                continue
+                # TODO: throw error after development
+                # raise ValueError(f"Item not found: {stock_code}")
 
             item = frappe.get_doc("Item", stock_code)
             if not item.custom_kit:
@@ -267,6 +277,7 @@ class MLYListProcessor(ExcelProcessorInterface):
                 bom.custom_accessory_kit = item.get("item_code")
                 bom.custom_accessory_kit_qty = get_float_value(row.get("Miktar"))
 
+        print("Non-Existent Items:\n", non_existent_items)
         # Add operations
         self._add_operations_to_bom(bom, mly_helper.get_middle_operations(profile_group))
 
