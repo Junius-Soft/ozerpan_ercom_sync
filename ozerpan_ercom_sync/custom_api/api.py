@@ -12,6 +12,10 @@ from .barcode_reader.reader import BarcodeReader
 from .file_processor.processor import ExcelProcessingManager
 from .glass_processor.glass_processor import GlassOperationProcessor
 from .glass_processor.types import GlassOperationRequest
+from .services.surme_service import (
+    fetch_surme_orders,
+    fetch_surme_poz_details,
+)
 
 
 @frappe.whitelist()
@@ -55,6 +59,30 @@ def _get_current_glass(glass_name: str) -> Any:
 def _get_related_glasses(order_no: str, poz_no: str) -> List[Dict]:
     filters = {"order_no": order_no, "poz_no": poz_no}
     return frappe.get_all("CamListe", filters=filters, fields=["*"])
+
+
+###########################
+
+
+@frappe.whitelist()
+def get_surme_orders():
+    print("\n\n\n-- Get Surme Orders --")
+    form_data = frappe.form_dict
+    order_no = form_data.order_no
+
+    orders = fetch_surme_orders(order_no)
+
+    print("\n\n\n")
+    return {"orders": list(orders)}
+
+
+@frappe.whitelist()
+def get_surme_poz_by_order_no():
+    print("\n\n\n-- Get Surme Poz By Order No --")
+    form_data = frappe.form_dict
+    order_no = form_data.order_no
+
+    return fetch_surme_poz_details(order_no)
 
 
 ###########################

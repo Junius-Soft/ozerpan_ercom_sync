@@ -118,7 +118,13 @@ def get_tesdetay_data(pool):
         ORDER BY td.OTONO DESC
         LIMIT 5000
     """
-    # WHERE td.SIPARISNO = "S404325"
+    # query = """
+    #     SELECT td.*, t.*, s.MUSTERISI
+    #     FROM dbtesdetay td
+    #     LEFT JOIN dbtes t ON td.OTONO = t.OTONO
+    #     LEFT JOIN dbsiparis s ON td.SIPARISNO = s.SIPARISNO
+    #     WHERE td.SIPARISNO = "S500452"
+    # """
     results = pool.execute_query(query)
     return results
 
