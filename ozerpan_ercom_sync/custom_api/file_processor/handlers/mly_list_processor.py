@@ -111,7 +111,6 @@ class MLYListProcessor(ExcelProcessorInterface):
     def _process_sheet(
         self, sheet: SheetData, poz_data: Dict, file_info: ExcelFileInfo
     ) -> Dict[str, Any]:
-        print("-- Process Sheet --")
         try:
             df = sheet.data.replace({np.nan: None})
             df = df.dropna(how="all")
@@ -150,7 +149,11 @@ class MLYListProcessor(ExcelProcessorInterface):
                 for group, items in groups.items()
             }
 
-            main_profiles = grouped_dfs.get("Ana Profiller", pd.DataFrame())
+            main_profiles = None
+            for key, df in grouped_dfs.items():
+                if "Ana Profiller" in key:
+                    main_profiles = df
+                    break
 
             glasses = grouped_dfs.get("Camlar", pd.DataFrame())
             glass_stock_codes = (
