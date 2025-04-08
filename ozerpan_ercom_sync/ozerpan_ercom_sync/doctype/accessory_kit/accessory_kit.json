@@ -1,0 +1,43 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-04-08 15:28:51.511845",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "section_break_q0g9",
+  "kit_name",
+  "quantity"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_break_q0g9",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "kit_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Kit Name"
+  },
+  {
+   "fieldname": "quantity",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Quantity"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2025-04-08 15:32:22.261769",
+ "modified_by": "Administrator",
+ "module": "Ozerpan Ercom Sync",
+ "name": "Accessory Kit",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

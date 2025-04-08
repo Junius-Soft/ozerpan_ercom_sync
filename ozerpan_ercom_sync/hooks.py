@@ -14,14 +14,14 @@ app_license = "mit"
 fixtures = [
     {"dt": "Custom Field", "filters": [["module", "=", "Ozerpan Ercom Sync"]]},
     {"dt": "Property Setter", "filters": [["module", "=", "Ozerpan Ercom Sync"]]},
-    {"dt": "Item", "filters": [["custom_poz_id", "=", ""], ["custom_serial", "=", ""]]},
-    {"dt": "Item Group"},
-    {"dt": "Workstation"},
-    {"dt": "Operation"},
-    {"dt": "UOM"},
-    {"dt": "Cam"},
-    {"dt": "Profile Type"},
-    {"dt": "Cam Recipe"},
+    # {"dt": "Item", "filters": [["custom_poz_id", "=", ""], ["custom_serial", "=", ""]]},
+    # {"dt": "Item Group"},
+    # {"dt": "Workstation"},
+    # {"dt": "Operation"},
+    # {"dt": "UOM"},
+    # {"dt": "Cam"},
+    # {"dt": "Profile Type"},
+    # {"dt": "Cam Recipe"},
 ]
 
 # Each item in the list will be shown as an app in the apps page
