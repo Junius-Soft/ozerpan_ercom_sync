@@ -252,6 +252,7 @@ class MLYListProcessor(ExcelProcessorInterface):
 
         # Process BOM items
         items_table = []
+        accessory_kits_table = []
         non_existent_items = []
         for _, row in df.iterrows():
             stock_code = row["Stok Kodu"].lstrip("#")
@@ -279,12 +280,19 @@ class MLYListProcessor(ExcelProcessorInterface):
             else:
                 bom.custom_accessory_kit = item.get("item_code")
                 bom.custom_accessory_kit_qty = get_float_value(row.get("Miktar"))
+                accessory_kits_table.append(
+                    {
+                        "kit_name": item.get("item_code"),
+                        "quantity": get_float_value(row.get("Miktar")),
+                    }
+                )
 
         print("Non-Existent Items:\n", non_existent_items)
         # Add operations
         self._add_operations_to_bom(bom, mly_helper.get_middle_operations(profile_group))
 
         bom.set("items", items_table)
+        bom.set("custom_accessory_kits", accessory_kits_table)
         bom.save(ignore_permissions=True)
         bom.submit()
 
