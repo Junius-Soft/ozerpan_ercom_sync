@@ -3,6 +3,7 @@ import frappe
 
 def get_poz_data(barcode: str):
     tesdetay = frappe.get_doc("TesDetay", {"barkod": barcode})
+    sales_order = frappe.get_doc("Sales Order", tesdetay.siparis_no)
 
     bom_name = f"BOM-{tesdetay.siparis_no}-{tesdetay.poz_no}"
     bom_doc = get_latest_default_bom(bom_name)
@@ -30,7 +31,7 @@ def get_poz_data(barcode: str):
         "max_sanal_adet": bom_doc.get("quantity"),
         "serial": bom_item_doc.get("custom_serial"),
         "color": bom_item_doc.get("custom_color"),
-        "remarks": bom_item_doc.get("custom_remarks"),
+        "remarks": sales_order.get("custom_remarks"),
         "items": grouped_items,
     }
     return data
