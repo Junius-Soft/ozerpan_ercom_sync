@@ -11,6 +11,7 @@ from ozerpan_ercom_sync.db_pool import DatabaseConnectionPool
 
 @frappe.whitelist()
 def sync_tes_detay():
+    print("-- Sync TesDetay -- ")
     logger_dict = generate_logger("tesdetay_sync")
     logger = logger_dict["logger"]
 
@@ -116,7 +117,7 @@ def get_tesdetay_data(pool):
         LEFT JOIN dbtes t ON td.OTONO = t.OTONO
         LEFT JOIN dbsiparis s ON td.SIPARISNO = s.SIPARISNO
         ORDER BY td.OTONO DESC
-        LIMIT 5000
+        LIMIT 300
     """
     # query = """
     #     SELECT td.*, t.*, s.MUSTERISI

@@ -6,12 +6,15 @@ from frappe import _
 from ozerpan_ercom_sync.custom_api.utils import generate_logger, show_progress
 from ozerpan_ercom_sync.utils import get_mysql_connection
 
+from .tes_detay import sync_tes_detay
+
 
 @frappe.whitelist()
 def sync_ercom():
     logger = generate_logger("sync_ercom")["logger"]
     sync_users(logger)
     sync_orders(logger)
+    sync_tes_detay()
 
 
 def sync_users(logger) -> dict[str, str]:
