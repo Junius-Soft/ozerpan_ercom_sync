@@ -57,6 +57,7 @@ def group_bom_items_by_category(bom_doc):
             "cam ünite karolaj çıtaları",
             "cam ünite ara çıtalar",
             "tek camlar",
+            "camlar",
         ],
         "ortak_fitil": ["ortak fitiller"],
         "ortak_vida": ["ortak vidalar"],
