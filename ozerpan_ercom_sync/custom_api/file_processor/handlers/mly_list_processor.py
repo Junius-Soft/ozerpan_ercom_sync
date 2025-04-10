@@ -34,10 +34,9 @@ class MLYListProcessor(ExcelProcessorInterface):
                 "status": "Draft",
             },
         ):
-            raise ValueError(
-                _(
-                    "No such Sales Order found. Please sync the database before uploading the file."
-                )
+            frappe.throw(
+                title="Sipariş Bulunamadı",
+                msg="MLY dosyasına ait sipariş bulunamadı. ERCOM'u senkronize ediniz"
             )
 
     def process(self, file_info: ExcelFileInfo, file_data: bytes) -> Dict[str, Any]:
@@ -55,10 +54,18 @@ class MLYListProcessor(ExcelProcessorInterface):
             self._update_sales_order_taxes(sales_order)
 
             processed_sheets = []
+            missing_items = []
             for idx, sheet in enumerate(sheets):
                 try:
                     result = self._process_sheet(sheet, poz_data[idx], file_info)
-                    processed_sheets.append({"sheet_name": sheet.name, "data": result})
+
+                    if result.get("status") == "error":
+                        missing_items.extend(result.get("missing_items", []))
+                    else:
+                        processed_sheets.append(
+                            {"sheet_name": sheet.name, "data": result}
+                        )
+
                 except IndexError:
                     print("-- Index Error --")
                     frappe.log_error(
@@ -66,6 +73,15 @@ class MLYListProcessor(ExcelProcessorInterface):
                         "MLY Processing Warning",
                     )
                     continue
+
+            if missing_items:
+                frappe.throw(
+                    title="Eksik Ürünler Tespit Edildi",
+                    msg="<br>".join([
+                        f"• {item.get('type')} - {item.get('stock_code')} (Sipariş: {item.get('order_no')}, Poz: {item.get('poz_no')})"
+                        for item in missing_items
+                    ])
+                )
 
             # Update sales order items
             self._update_sales_order_items(sales_order, processed_sheets)
@@ -174,6 +190,14 @@ class MLYListProcessor(ExcelProcessorInterface):
                 glass_stock_codes,
             )
 
+            if bom_result.get("status") == "error":
+                return {
+                    "status": "error",
+                    "message": "Missing items detected",
+                    "missing_items": bom_result.get("missing_items"),
+                    "sheet_name": sheet.name,
+                }
+
             return {
                 "item_code": item.item_code,
                 "item_name": item.item_name,
@@ -229,10 +253,61 @@ class MLYListProcessor(ExcelProcessorInterface):
         return item
 
     def _create_bom(
-        self, item_name: str, qty: float, main_profiles: Any, df: Any, glass_stock_codes
+        self,
+        item_name: str,
+        qty: float,
+        main_profiles: Any,
+        df: Any,
+        glass_stock_codes,
     ) -> Dict[str, Any]:
         """Create Bill of Materials document"""
         print("-- Create BOM --")
+
+        missing_items = []
+
+        for _, row in main_profiles.iterrows():
+            stock_code = row["Stok Kodu"].lstrip("#")
+            if not frappe.db.exists("Profile Type", stock_code):
+                missing_items.append(
+                    {
+                        "stock_code": stock_code,
+                        "type": "Profile Type",
+                        "order_no": item_name.split("-")[0],
+                        "poz_no": item_name.split("-")[1],
+                    }
+                )
+
+        for _, row in df.iterrows():
+            stock_code = row["Stok Kodu"].lstrip("#")
+
+            if stock_code in glass_stock_codes:
+                if not frappe.db.exists("Cam Recipe", stock_code):
+                    missing_items.append(
+                        {
+                            "stock_code": stock_code,
+                            "type": "Cam Recipe",
+                            "order_no": item_name.split("-")[0],
+                            "poz_no": item_name.split("-")[1],
+                        }
+                    )
+
+            if not frappe.db.exists("Item", stock_code):
+                missing_items.append(
+                    {
+                        "stock_code": stock_code,
+                        "type": "Item",
+                        "order_no": item_name.split("-")[0],
+                        "poz_no": item_name.split("-")[1],
+                    }
+                )
+
+        if missing_items:
+            return {
+                "status": "error",
+                "message": "Missing items detected",
+                "missing_items": missing_items,
+            }
+
         company = frappe.defaults.get_user_default("Company")
         bom = frappe.new_doc("BOM")
         bom.item = item_name
@@ -252,7 +327,7 @@ class MLYListProcessor(ExcelProcessorInterface):
 
         # Process BOM items
         items_table = []
-        non_existent_items = []
+        accessory_kits_table = []
         for _, row in df.iterrows():
             stock_code = row["Stok Kodu"].lstrip("#")
             if stock_code in glass_stock_codes:
@@ -260,36 +335,30 @@ class MLYListProcessor(ExcelProcessorInterface):
                 items_table.append(glass_item)
                 continue
 
-            if not frappe.db.exists("Item", stock_code):
-                print("Item Not Found:", stock_code)
-                non_existent_items.append(
-                    {
-                        "stock_code": stock_code,
-                        "order_no": item_name.split("-")[0],
-                        "poz_no": item_name.split("-")[1],
-                    }
-                )
-                continue
-                # TODO: throw error after development
-                # raise ValueError(f"Item not found: {stock_code}")
-
             item = frappe.get_doc("Item", stock_code)
             if not item.custom_kit:
                 items_table.append(self._create_bom_item(row, item))
             else:
                 bom.custom_accessory_kit = item.get("item_code")
                 bom.custom_accessory_kit_qty = get_float_value(row.get("Miktar"))
+                accessory_kits_table.append(
+                    {
+                        "kit_name": item.get("item_code"),
+                        "quantity": get_float_value(row.get("Miktar")),
+                    }
+                )
 
-        print("Non-Existent Items:\n", non_existent_items)
         # Add operations
         self._add_operations_to_bom(bom, mly_helper.get_middle_operations(profile_group))
 
         bom.set("items", items_table)
+        bom.set("custom_accessory_kits", accessory_kits_table)
         bom.save(ignore_permissions=True)
         bom.submit()
 
         return {
-            "msg": "BOM created successfully.",
+            "status": "success",
+            "message": "BOM created successfully.",
             "docname": bom.name,
             "total_cost": bom.total_cost,
         }

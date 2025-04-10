@@ -1,8 +1,11 @@
 import frappe
 
 
+@frappe.whitelist()
 def get_poz_data(barcode: str):
+    print("\n\n\n--- Get Poz Data ---")
     tesdetay = frappe.get_doc("TesDetay", {"barkod": barcode})
+    sales_order = frappe.get_doc("Sales Order", tesdetay.siparis_no)
 
     bom_name = f"BOM-{tesdetay.siparis_no}-{tesdetay.poz_no}"
     bom_doc = get_latest_default_bom(bom_name)
@@ -10,16 +13,21 @@ def get_poz_data(barcode: str):
 
     grouped_items = group_bom_items_by_category(bom_doc)
 
-    if bom_doc.custom_accessory_kit:
-        kit = frappe.get_doc("Item", bom_doc.custom_accessory_kit)
-        grouped_items["accessory_kit"] = [
-            {
-                "item_code": kit.item_code,
-                "item_name": kit.item_name,
-                "quantity": bom_doc.custom_accessory_kit_qty,
-                "image": kit.image,
-            }
-        ]
+    accessory_kits = bom_doc.custom_accessory_kits
+
+    if accessory_kits:
+        for kit in accessory_kits:
+            kit_doc = frappe.get_doc("Item", kit.kit_name)
+            if "accessory_kits" not in grouped_items:
+                grouped_items["accessory_kits"] = []
+            grouped_items["accessory_kits"].append(
+                {
+                    "item_code": kit_doc.item_code,
+                    "item_name": kit_doc.item_name,
+                    "quantity": kit.quantity,
+                    "image": kit_doc.image,
+                }
+            )
 
     data = {
         "siparis_no": tesdetay.get("siparis_no"),
@@ -30,9 +38,10 @@ def get_poz_data(barcode: str):
         "max_sanal_adet": bom_doc.get("quantity"),
         "serial": bom_item_doc.get("custom_serial"),
         "color": bom_item_doc.get("custom_color"),
-        "remarks": bom_item_doc.get("custom_remarks"),
+        "remarks": sales_order.get("custom_remarks"),
         "items": grouped_items,
     }
+
     return data
 
 
