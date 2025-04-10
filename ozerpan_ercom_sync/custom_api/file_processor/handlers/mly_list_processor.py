@@ -34,10 +34,9 @@ class MLYListProcessor(ExcelProcessorInterface):
                 "status": "Draft",
             },
         ):
-            raise ValueError(
-                _(
-                    "No such Sales Order found. Please sync the database before uploading the file."
-                )
+            frappe.throw(
+                title="Sipariş Bulunamadı",
+                msg="MLY dosyasına ait sipariş bulunamadı. ERCOM'u senkronize ediniz"
             )
 
     def process(self, file_info: ExcelFileInfo, file_data: bytes) -> Dict[str, Any]:
@@ -76,11 +75,13 @@ class MLYListProcessor(ExcelProcessorInterface):
                     continue
 
             if missing_items:
-                return {
-                    "status": "error",
-                    "message": "Missing items detected",
-                    "missing_items": missing_items,
-                }
+                frappe.throw(
+                    title="Eksik Ürünler Tespit Edildi",
+                    msg="<br>".join([
+                        f"• {item.get('type')} - {item.get('stock_code')} (Sipariş: {item.get('order_no')}, Poz: {item.get('poz_no')})"
+                        for item in missing_items
+                    ])
+                )
 
             # Update sales order items
             self._update_sales_order_items(sales_order, processed_sheets)
