@@ -47,6 +47,7 @@ def process_opt_file(file: Dict, logger: logging.Logger) -> None:
             raise frappe.ValidationError(f"Machine not found for opt number: {opt_no}")
 
         create_opt_genel_doc(opt_no, opt_code, machine_no, df, logger)
+        create_super_kesim_doc(opt_no, opt_code, machine_no, df, logger)
 
     except Exception as e:
         logger.error(f"Error processing OPT file: {str(0)}")
@@ -117,6 +118,55 @@ def create_opt_genel_doc(
 
     except Exception as e:
         logger.error(f"Error creating/updating Opt Genel doc: {str(e)}")
+        raise
+
+def create_super_kesim_doc(
+    opt_no: str, opt_code: str, machine_no: int, df: pd.DataFrame, logger: logging.Logger
+) -> None:
+    """Creates or updates an Super Kesim document with item data from dataframe."""
+    try:
+        # Get existing doc or create new
+        opt = (
+            frappe.get_doc("Super Kesim", {"opt_no": opt_no})
+            if frappe.db.exists("Super Kesim", {"opt_no": opt_no})
+            else frappe.new_doc("Super Kesim")
+        )
+
+        # Set basic fields
+        opt.opt_no = opt_no
+        opt.opt_code = opt_code
+        opt.machine_no = get_machine_name(machine_no)
+
+        # Process items
+        items_data = []
+        for idx, row in df.iterrows():
+            stock_code = str(row["Stok Kodu"]).strip()
+            item_code = frappe.db.exists("Item", {"item_code": stock_code})
+
+            if not item_code:
+                logger.error(f"Item not found for stock code: {stock_code}")
+                frappe.throw(f"Item not found for stock code: {stock_code}")
+
+
+
+            items_data.append(
+                {
+                    "item_code": item_code,
+                    "item_name": str(row["Açıklama"]),
+                    "amountboy": get_float_value(str(row["Adet"])),
+                    "amountmt": get_float_value(str(row["Kullanılan"])),
+                    "amountpcs": get_float_value(str(row["Parça"])),
+                }
+            )
+
+        opt.set("profile_list", items_data)
+        opt.save(ignore_permissions=True)
+        logger.info(
+            f"Successfully {'updated' if opt.name else 'created'} Super Kesim: {opt.name}"
+        )
+
+    except Exception as e:
+        logger.error(f"Error creating/updating Super Kesim doc: {str(e)}")
         raise
 
 
