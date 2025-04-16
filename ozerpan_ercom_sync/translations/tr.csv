@@ -1,0 +1,48 @@
+Source Text,Translated Text
+
+Glass not found,Cam bulunamadı
+Unexpected error occurred,Beklenmeyen hata oluştu
+Cannot process cancelled job card,İptal edilen iş kartı işlenemiyor
+All the related Job Cards are already completed,İlgili tüm iş kartları zaten tamamlandı
+Barcode not found in job card,İş kartında barkod bulunamadı
+This operation for this item is already completed,Bu öğe için bu işlem zaten tamamlandı
+Quality data is required for quality control,Kalite kontrolü için kalite verisi gerekli
+This item has unfinished job cards. All jobs must be finished before quality control,Bu öğenin tamamlanmamış iş kartları var. Kalite kontrolünden önce tüm işler bitirilmelidir
+There is an open quality control process. You should finish the open process before starting a new one,Açık bir kalite kontrol süreci var. Yeni bir süreç başlatmadan önce açık süreci bitirmelisiniz
+Correction operations are required when quality check fails,Kalite kontrolü başarısız olduğunda düzeltme işlemleri gerekli
+Barcode processed successfully,Barkod başarıyla işlendi
+File not found on server,Dosya sunucuda bulunamadı
+Order number is required,Sipariş numarası gerekli
+No such Sales Order found. Please sync the database before uploading the file,Böyle bir satış siparişi bulunamadı. Lütfen dosyayı yüklemeden önce veritabanını senkronize edin
+Please upload MLY file first,Lütfen önce MLY dosyasını yükleyin
+Glass list file processed successfully,Cam listesi dosyası başarıyla işlendi
+MLY list file processed successfully,MLY listesi dosyası başarıyla işlendi
+Opt DST table sync,Opt DST tablo senkronizasyonu
+Updating items {0} of {1},Öğeler güncelleniyor {0} / {1}
+Error processing MLY file: {0},MLY dosyası işlenirken hata: {0}
+Syncing Sheet {0} of {1},Sayfa senkronize ediliyor {0} / {1}
+Error processing OPT file: {0},OPT dosyası işlenirken hata: {0}
+This item is already completed,Bu öğe zaten tamamlandı
+Invalid item status,Geçersiz öğe durumu
+The item must be completed before quality control,Kalite kontrolünden önce öğe tamamlanmalıdır
+Quality control completed,Kalite kontrolü tamamlandı
+Failed to create correction job,Düzeltme işi oluşturulamadı
+Sales Order,Satış Siparişi
+Syncing TesDetay {0} of {1},TesDetay senkronize ediliyor {0} / {1}
+TesDetay synchronized successfully,TesDetay başarıyla senkronize edildi
+Upload OPT/DST,OPT/DST Yükle
+Select Excel File,Excel Dosyası Seç
+Submit,Gönder
+Success,Başarılı
+Error,Hata
+Process File,Dosya İşle
+Read Barcode,Barkod Oku
+Sync PozData,PozData Senkronize Et
+Poz data success,Poz verisi başarılı
+An error occurred while getting Poz Data,Poz verisi alınırken hata oluştu
+Barcode data success,Barkod verisi başarılı
+An error occurred while reading Barcode,Barkod okunurken hata oluştu
+Sync Ercom,Ercom Senkronize Et
+Upload Excel,Excel Yükle
+Customers synchronized successfully,Müşteriler başarıyla senkronize edildi
+Customer Discount was not applied to the Sales Order,Müşteri İndirimi Satış Siparişine uygulanmadı
