@@ -2,7 +2,10 @@ from typing import Dict, List
 
 import frappe
 
+from ozerpan_ercom_sync.utils import timer
 
+
+@timer
 def on_trash(doc, method) -> None:
     """
     Handle Job Card deletion for both regular and corrective job cards
@@ -11,7 +14,6 @@ def on_trash(doc, method) -> None:
     print("\n\n\n-- Job Card On Trash --")
     remove_job_card_link_from_tesdetay(doc)
     remove_job_card_link_from_glasslist(doc)
-    print("\n\n\n")
 
 
 def remove_job_card_link_from_glasslist(job_card_doc) -> None:

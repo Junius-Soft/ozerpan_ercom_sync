@@ -1,7 +1,24 @@
+import time
+from functools import wraps
+
 import frappe
 import pymysql
 
 
+def timer(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start_time = time.time()
+        result = func(*args, **kwargs)
+        end_time = time.time()
+        execution_time = (end_time - start_time) * 1000
+        print(f"Function '{func.__name__}' took {execution_time:.2f} ms to execute")
+        return result
+
+    return wrapper
+
+
+# TODO refactor the dependant functions and clear this.
 def get_mysql_connection():
     config = frappe.conf
 
