@@ -36,7 +36,7 @@ class MLYListProcessor(ExcelProcessorInterface):
         ):
             frappe.throw(
                 title="Sipariş Bulunamadı",
-                msg="MLY dosyasına ait sipariş bulunamadı. ERCOM'u senkronize ediniz"
+                msg="MLY dosyasına ait sipariş bulunamadı. ERCOM'u senkronize ediniz",
             )
 
     def process(self, file_info: ExcelFileInfo, file_data: bytes) -> Dict[str, Any]:
@@ -77,10 +77,12 @@ class MLYListProcessor(ExcelProcessorInterface):
             if missing_items:
                 frappe.throw(
                     title="Eksik Ürünler Tespit Edildi",
-                    msg="<br>".join([
-                        f"• {item.get('type')} - {item.get('stock_code')} (Sipariş: {item.get('order_no')}, Poz: {item.get('poz_no')})"
-                        for item in missing_items
-                    ])
+                    msg="<br>".join(
+                        [
+                            f"• {item.get('type')} - {item.get('stock_code')} (Sipariş: {item.get('order_no')}, Poz: {item.get('poz_no')})"
+                            for item in missing_items
+                        ]
+                    ),
                 )
 
             # Update sales order items
@@ -476,7 +478,7 @@ class MLYListProcessor(ExcelProcessorInterface):
     def _add_operations_to_bom(self, bom: Any, middle_operations: List[str]) -> None:
         """Add operations to BOM"""
         fixed_starting_operations = ["Profil Temin", "Sac Kesim"]
-        fixed_ending_operations = ["Çıta", "Kalite", "Sevkiyat"]
+        fixed_ending_operations = ["Çıta", "Kalite"]
         full_operations = (
             fixed_starting_operations + middle_operations + fixed_ending_operations
         )
