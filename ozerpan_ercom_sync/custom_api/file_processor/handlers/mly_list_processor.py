@@ -7,6 +7,7 @@ from frappe import _
 
 from ozerpan_ercom_sync.custom_api.file_processor.constants import ExcelFileType
 from ozerpan_ercom_sync.custom_api.file_processor.handlers import mly_helper
+from ozerpan_ercom_sync.custom_api.tes_detay import sync_tes_detay
 from ozerpan_ercom_sync.custom_api.utils import get_float_value
 from ozerpan_ercom_sync.db_pool import DatabaseConnectionPool
 
@@ -46,6 +47,7 @@ class MLYListProcessor(ExcelProcessorInterface):
 
             # Get poz data from ERCOM database
             poz_data = self._get_poz_data(file_info.order_no)
+            sync_tes_detay(order_no=file_info.order_no)
 
             print("File Info:", file_info)
 
@@ -74,16 +76,16 @@ class MLYListProcessor(ExcelProcessorInterface):
                     )
                     continue
 
-            if missing_items:
-                frappe.throw(
-                    title="Eksik Ürünler Tespit Edildi",
-                    msg="<br>".join(
-                        [
-                            f"• {item.get('type')} - {item.get('stock_code')} (Sipariş: {item.get('order_no')}, Poz: {item.get('poz_no')})"
-                            for item in missing_items
-                        ]
-                    ),
-                )
+            # if missing_items:
+            #     frappe.throw(
+            #         title="Eksik Ürünler Tespit Edildi",
+            #         msg="<br>".join(
+            #             [
+            #                 f"• {item.get('type')} - {item.get('stock_code')} (Sipariş: {item.get('order_no')}, Poz: {item.get('poz_no')})"
+            #                 for item in missing_items
+            #             ]
+            #         ),
+            #     )
 
             # Update sales order items
             self._update_sales_order_items(sales_order, processed_sheets)
