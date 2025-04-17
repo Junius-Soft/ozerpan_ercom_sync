@@ -102,3 +102,25 @@ def bulk_insert_child_rows(child_table, parenttype, parentfield, rows, extra_fie
     """
 
     frappe.db.sql(sql, tuple(values))
+
+
+def bulk_delete_child_rows(child_table, parent_field, references):
+    """
+    Bulk delete from a child table using raw SQL.
+
+    Args:
+            child_table (str): The child DocType name (e.g., "TesDetay Operation Status")
+            parent_field (str): The field to match for deletion (e.g., "job_card_ref")
+            references (list): List of values to match against parent field
+    """
+
+    if not references:
+        return
+
+    placeholders = ", ".join(["%s"] * len(references))
+    sql = f"""
+        DELETE FROM `tab{child_table}`
+        WHERE `{parent_field}` IN ({placeholders})
+    """
+
+    frappe.db.sql(sql, tuple(references))
