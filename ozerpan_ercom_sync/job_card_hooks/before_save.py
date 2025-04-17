@@ -27,7 +27,6 @@ def before_save(doc, method) -> None:
             handle_barcode_regular_job_card(doc, order_no, poz_no, operation_name)
 
 
-@timer
 def handle_glass_corrective_job_card(doc, order_no: str, poz_no: str) -> None:
     if not doc.custom_target_sanal_adet:
         return
@@ -53,7 +52,6 @@ def handle_glass_corrective_job_card(doc, order_no: str, poz_no: str) -> None:
     doc.set("custom_glasses", glasses)
 
 
-@timer
 def handle_glass_regular_job_card(doc, order_no: str, poz_no: str) -> None:
     glasses = []
     glass_list = get_glass_list(order_no, poz_no)
@@ -77,7 +75,6 @@ def handle_glass_regular_job_card(doc, order_no: str, poz_no: str) -> None:
     doc.set("custom_glasses", glasses)
 
 
-@timer
 def get_glass_job_card_data(doc, glass: Dict) -> Dict[str, str]:
     for jc in glass.get("job_cards", []):
         if jc.get("job_card_ref") == doc.name:
@@ -94,7 +91,6 @@ def get_glass_job_card_data(doc, glass: Dict) -> Dict[str, str]:
     }
 
 
-@timer
 def handle_barcode_corrective_job_card(doc, order_no: str, poz_no: str) -> None:
     """Handle barcode assignment for corrective job cards"""
     if not doc.custom_target_sanal_adet:
@@ -124,7 +120,6 @@ def handle_barcode_corrective_job_card(doc, order_no: str, poz_no: str) -> None:
     doc.set("custom_barcodes", barcodes)
 
 
-@timer
 def handle_barcode_regular_job_card(
     doc, order_no: str, poz_no: str, operation_name: str
 ) -> None:
@@ -160,7 +155,6 @@ def handle_barcode_regular_job_card(
     doc.set("custom_barcodes", barcodes)
 
 
-@timer
 def get_operation_status_data(doc, tesdetay: Dict) -> Dict[str, str]:
     """
     Get operation status data including operation and corrective status
@@ -193,7 +187,6 @@ def get_operation_status_data(doc, tesdetay: Dict) -> Dict[str, str]:
     }
 
 
-@timer
 def get_tesdetay_list(
     order_no: str, poz_no: str, target_sanal_adet: Optional[str] = None
 ) -> List[Dict]:
@@ -274,7 +267,6 @@ def get_tesdetay_list(
     return organized_data
 
 
-@timer
 def get_glass_list(
     order_no: str, poz_no: str, target_sanal_adet: Optional[str] = None
 ) -> List[Dict]:

@@ -2,6 +2,8 @@ from typing import Any, Dict, List, Optional
 
 from frappe import _
 
+from ozerpan_ercom_sync.utils import timer
+
 from ..base import OperationHandler
 from ..constants import BarcodeStatus
 from ..models.barcode_info import BarcodeInfo
@@ -28,6 +30,7 @@ class DefaultOperationHandler(OperationHandler):
             if int(b.sanal_adet) == current_barcode.sanal_adet
         ]
 
+    @timer
     def handle_barcode(
         self,
         barcode: str,

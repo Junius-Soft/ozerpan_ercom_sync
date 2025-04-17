@@ -10,7 +10,7 @@ from ozerpan_ercom_sync.db_pool import DatabaseConnectionPool
 
 
 @frappe.whitelist()
-def sync_tes_detay():
+def sync_tes_detay(order_no=None):
     print("-- Sync TesDetay -- ")
     logger_dict = generate_logger("tesdetay_sync")
     logger = logger_dict["logger"]
@@ -19,7 +19,7 @@ def sync_tes_detay():
         logger.info("Starting synchronizing TesDetay.")
         pool = DatabaseConnectionPool()
         logger.info("Connection pool is initializing.")
-        data = get_tesdetay_data(pool)
+        data = get_tesdetay_data(pool, order_no)
         data_len = len(data)
         synced_count = 0
 
@@ -110,23 +110,24 @@ def sync_tes_detay():
         logger.info("Connection pool is closed.")
 
 
-def get_tesdetay_data(pool):
-    query = """
-        SELECT td.*, t.*, s.MUSTERISI
-        FROM dbtesdetay td
-        LEFT JOIN dbtes t ON td.OTONO = t.OTONO
-        LEFT JOIN dbsiparis s ON td.SIPARISNO = s.SIPARISNO
-        ORDER BY td.OTONO DESC
-        LIMIT 300
-    """
+def get_tesdetay_data(pool, order_no=None):
+    print("\n\n\n---Get Tesdetay Data---")
     # query = """
     #     SELECT td.*, t.*, s.MUSTERISI
     #     FROM dbtesdetay td
     #     LEFT JOIN dbtes t ON td.OTONO = t.OTONO
     #     LEFT JOIN dbsiparis s ON td.SIPARISNO = s.SIPARISNO
-    #     WHERE td.SIPARISNO = "S500452"
+    #     ORDER BY td.OTONO DESC
+    #     LIMIT 300
     # """
-    results = pool.execute_query(query)
+    query = """
+        SELECT td.*, t.*, s.MUSTERISI
+        FROM dbtesdetay td
+        LEFT JOIN dbtes t ON td.OTONO = t.OTONO
+        LEFT JOIN dbsiparis s ON td.SIPARISNO = s.SIPARISNO
+        WHERE td.SIPARISNO = %(order_no)s
+    """
+    results = pool.execute_query(query, {"order_no": order_no})
     return results
 
 

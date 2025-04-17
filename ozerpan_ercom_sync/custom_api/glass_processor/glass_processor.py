@@ -94,7 +94,7 @@ class GlassOperationProcessor:
         )
 
         glass_quality_data = current_glass.quality_data
-        job_card.save()
+        job_card.save(ignore_permissions=True)
 
         return {
             "status": "failed",
@@ -244,7 +244,7 @@ class GlassOperationProcessor:
             for jc in glass.job_cards:
                 if jc.job_card_ref == job_card_name:
                     jc.status = status
-                    glass.save()
+                    glass.save(ignore_permissions=True)
                     break
 
     def _is_sanal_adet_group_complete(self, job_card: any, glass: Dict) -> bool:

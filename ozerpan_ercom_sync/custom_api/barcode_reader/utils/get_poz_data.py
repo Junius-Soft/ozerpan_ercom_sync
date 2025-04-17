@@ -1,6 +1,9 @@
 import frappe
 
+from ozerpan_ercom_sync.utils import timer
 
+
+@timer
 @frappe.whitelist()
 def get_poz_data(barcode: str):
     print("\n\n\n--- Get Poz Data ---")
