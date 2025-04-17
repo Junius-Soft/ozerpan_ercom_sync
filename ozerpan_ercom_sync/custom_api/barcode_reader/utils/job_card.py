@@ -11,7 +11,7 @@ def complete_job(job_card: Any, qty: int) -> None:
                 time_log.to_time = frappe.utils.now()
                 time_log.completed_qty = qty
                 break
-        job_card.save()
+        job_card.save(ignore_permissions=True)
     except Exception as e:
         frappe.log_error(f"Error completing job: {str(e)}")
         raise
@@ -41,7 +41,7 @@ def update_job_card_status(
             if not time_log.to_time:  # Find the open time log
                 time_log.to_time = frappe.utils.now()
                 break
-    job_card.save()
+    job_card.save(ignore_permissions=True)
 
 
 def submit_job_card(job_card: Any) -> None:

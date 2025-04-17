@@ -415,7 +415,7 @@ class MLYListProcessor(ExcelProcessorInterface):
             }
         )
 
-        glass_item.save()
+        glass_item.save(ignore_permissions=True)
 
         company = frappe.defaults.get_user_default("Company")
         bom = frappe.new_doc("BOM")
@@ -463,7 +463,7 @@ class MLYListProcessor(ExcelProcessorInterface):
         )
 
         bom.set("items", bom_items_table)
-        bom.save()
+        bom.save(ignore_permissions=True)
         bom.submit()
 
         return {

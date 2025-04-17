@@ -32,7 +32,7 @@ def remove_job_card_link_from_glasslist(job_card_doc) -> None:
 
         if modified:
             try:
-                g.save()
+                g.save(ignore_permissions=True)
             except Exception as e:
                 frappe.log_error(
                     f"Error updating GlassList {g.name} while deleting job card {job_card_doc.name}: {str(e)}"

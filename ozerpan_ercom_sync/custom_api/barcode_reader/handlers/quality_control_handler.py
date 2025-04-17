@@ -206,7 +206,7 @@ class QualityControlHandler(OperationHandler):
                     quality_data,
                 )
 
-        job_card.save()
+        job_card.save(ignore_permissions=True)
 
         update_job_card_status(job_card, "On Hold")
         self._record_quality_result(job_card, employee, quality_data, success=False)

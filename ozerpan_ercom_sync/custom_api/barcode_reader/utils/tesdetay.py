@@ -27,5 +27,5 @@ def update_operation_status(
     for op_state in tesdetay.operation_states:
         if op_state.job_card_ref == job_card_name:
             op_state.status = status.value
-            tesdetay.save()
+            tesdetay.save(ignore_permissions=True)
             break

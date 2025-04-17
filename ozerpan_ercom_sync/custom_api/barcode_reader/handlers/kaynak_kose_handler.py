@@ -248,7 +248,7 @@ class KaynakKoseHandler(OperationHandler):
                     barcode.tesdetay_ref, job_card.name, BarcodeStatus.IN_PROGRESS
                 )
 
-        job_card.save()
+        job_card.save(ignore_permissions=True)
 
     def _get_current_barcode(self, job_card: Any, barcode: str) -> BarcodeInfo:
         b = next((b for b in job_card.custom_barcodes if b.barcode == barcode), None)
