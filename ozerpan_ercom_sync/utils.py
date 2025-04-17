@@ -124,3 +124,39 @@ def bulk_delete_child_rows(child_table, parent_field, references):
     """
 
     frappe.db.sql(sql, tuple(references))
+
+
+def bulk_update_operation_status(tesdetay_refs, job_card_refs, status):
+    """
+    Bulk update operation states using raw SQL
+
+    Args:
+        tesdetay_refs (list): List of tesdetay references
+        job_card_refs (list): List of job card references
+        status (str): Status to set
+    """
+    if not tesdetay_refs or not job_card_refs:
+        return
+
+    # Create pairs of tesdetay_ref and job_card_ref
+    pairs = list(zip(tesdetay_refs, job_card_refs))
+
+    # Create CASE statement conditions
+    case_conditions = []
+    values = []
+    for tesdetay_ref, job_card_ref in pairs:
+        case_conditions.append(
+            "(parent = %s AND job_card_ref = %s)",
+        )
+        values.extend([tesdetay_ref, job_card_ref])
+
+    where_clause = " OR ".join(case_conditions)
+
+    sql = f"""
+        UPDATE `tabTesDetay Operation Status`
+        SET status = %s
+        WHERE {where_clause}
+    """
+
+    values.insert(0, status)
+    frappe.db.sql(sql, tuple(values))

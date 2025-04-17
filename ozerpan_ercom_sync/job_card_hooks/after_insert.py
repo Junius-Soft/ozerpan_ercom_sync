@@ -10,7 +10,6 @@ def after_insert(doc, method):
         add_job_cards_into_tesdetay(doc)
 
 
-@timer
 def add_job_cards_into_camliste(job_card_doc):
     # TODO: Use bulk insert
 
@@ -36,7 +35,6 @@ def add_job_cards_into_camliste(job_card_doc):
     )
 
 
-@timer
 def add_job_cards_into_tesdetay(job_card_doc):
     rows = []
 
