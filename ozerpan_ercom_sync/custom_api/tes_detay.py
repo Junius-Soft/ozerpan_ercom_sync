@@ -7,6 +7,7 @@ from ozerpan_ercom_sync.custom_api.utils import (
     show_progress,
 )
 from ozerpan_ercom_sync.db_pool import DatabaseConnectionPool
+from ozerpan_ercom_sync.utils import timer
 
 
 @frappe.whitelist()
@@ -21,8 +22,11 @@ def sync_tes_detay(order_no=None):
         logger.info("Connection pool is initializing.")
         data = get_tesdetay_data(pool, order_no)
         data_len = len(data)
-        synced_count = 0
 
+        print(f"\n\n\nData Length: {data_len}")
+        print(f"Order No: {order_no}\n\n\n")
+
+        values = []
         for i, row in enumerate(data):
             show_progress(
                 curr_count=i + 1,
@@ -30,8 +34,6 @@ def sync_tes_detay(order_no=None):
                 title="Updating TesDetay",
                 desc=_("Syncing TesDetay {0} of {1}").format(i + 1, data_len),
             )
-            if frappe.db.exists("TesDetay", {"sayac": row.get("SAYAC")}):
-                continue
 
             barcode = generate_barcode(
                 araba_no=row.get("ARABANO"),
@@ -43,63 +45,95 @@ def sync_tes_detay(order_no=None):
                 yer_no=row.get("YERNO"),
             )
 
-            td = frappe.new_doc("TesDetay")
-            # Map row data to TesDetay fields
-            field_mappings = {
-                "oto_no": "OTONO",
-                "siparis_no": "SIPARISNO",
-                "cari_kod": "CARIKOD",
-                "poz_no": "POZNO",
-                "stok_kodu": "STOKKODU",
-                "model": "MODEL",
-                "olcu": "OLCU",
-                "pozisyon": "POZISYON",
-                "aci1": "ACI1",
-                "aci2": "ACI2",
-                "adet": "ADET",
-                "ercom": "ERCOM",
-                "sayac": "SAYAC",
-                "montaj_yeri": "MONTAJYERI",
-                "kasa_no": "KASANO",
-                "yer_no": "YERNO",
-                "kanat_no": "KANATNO",
-                "araba_no": "ARABANO",
-                "rc": "RC",
-                "program_no": "PROGRAMNO",
-                "islem": "ISLEM",
-                "bayi_adi": "BAYIADI",
-                "eksen": "EKSEN",
-                "yukseklik": "YUKSEKLIK",
-                "sol_ic": "SOLIC",
-                "sag_ic": "SAGIC",
-                "orta": "ORTA",
-                "da_kapi": "DAKAPI",
-                "ds_kodu": "DSKODU",
-                "ds_boyu": "DSBOYU",
-                "profil_tipi": "PROFILTIPI",
-                "hesap_kodu": "HESAPKODU",
-                "esiksiz": "ESIKSIZ",
-                "wc": "WC",
-                "kanat_index": "KANATINDEX",
-                "sanal_adet": "SANALADET",
-                "aciklama": "ACIKLAMA",
-                "uretim_sayac": "URETIMSAYAC",
-                "musteri": "MUSTERISI",
-            }
-
-            for field, key in field_mappings.items():
-                setattr(td, field, row.get(key))
-
             machine_name = get_machine_name(row.get("MAKINA"))
 
-            td.makina_no = machine_name
-            td.barkod = barcode
-            td.insert()
-            synced_count += 1
-            logger.info(f"Record {td.sayac} synchronized successfully")
+            now = frappe.utils.now()
+            doc_name = row.get("SAYAC") or frappe.generate_hash()
+            current_user = frappe.session.user
 
-        logger.info(f"Synchronized {synced_count} records successfully")
-        return {"status": "ok", "message": _("TesDetay synchronized successfully.")}
+            values.append(
+                (
+                    doc_name,  # name
+                    current_user,  # owner
+                    now,  # creation
+                    now,  # modified
+                    current_user,  # modified_by
+                    0,  # docstatus
+                    row.get("OTONO") or 0,  # oto_no
+                    row.get("SIPARISNO") or "",  # siparis_no
+                    row.get("CARIKOD") or "",  # cari_kod
+                    row.get("POZNO") or 0,  # poz_no
+                    row.get("STOKKODU") or "",  # stok_kodu
+                    row.get("MODEL") or "",  # model
+                    row.get("OLCU") or 0,  # olcu
+                    row.get("POZISYON") or "",  # pozisyon
+                    row.get("ACI1") or 0,  # aci1
+                    row.get("ACI2") or 0,  # aci2
+                    row.get("ADET") or 0,  # adet
+                    row.get("ERCOM") or "",  # ercom
+                    row.get("SAYAC") or 0,  # sayac
+                    row.get("MONTAJYERI") or "",  # montaj_yeri
+                    row.get("KASANO") or "",  # kasa_no
+                    row.get("YERNO") or 0,  # yer_no
+                    row.get("KANATNO") or 0,  # kanat_no
+                    row.get("ARABANO") or 0,  # araba_no
+                    row.get("RC") or "",  # rc
+                    row.get("PROGRAMNO") or 0,  # program_no
+                    row.get("ISLEM") or 0,  # islem
+                    row.get("BAYIADI") or "",  # bayi_adi
+                    row.get("EKSEN") or 0,  # eksen
+                    row.get("YUKSEKLIK") or 0,  # yukseklik
+                    row.get("SOLIC") or 0,  # sol_ic
+                    row.get("SAGIC") or 0,  # sag_ic
+                    row.get("ORTA") or 0,  # orta
+                    row.get("DAKAPI") or 0,  # da_kapi
+                    row.get("DSKODU") or "",  # ds_kodu
+                    row.get("DSBOYU") or 0,  # ds_boyu
+                    row.get("PROFILTIPI") or 0,  # profil_tipi
+                    row.get("HESAPKODU") or "",  # hesap_kodu
+                    row.get("ESIKSIZ") or 0,  # esiksiz
+                    row.get("WC") or 0,  # wc
+                    row.get("KANATINDEX") or 0,  # kanat_index
+                    row.get("SANALADET") or 0,  # sanal_adet
+                    row.get("ACIKLAMA") or "",  # aciklama
+                    row.get("URETIMSAYAC") or 0,  # uretim_sayac
+                    row.get("MUSTERISI") or "",  # musteri
+                    machine_name,  # makina_no
+                    barcode,  # barkod
+                )
+            )
+
+        if values:
+            sql = """
+                INSERT IGNORE INTO `tabTesDetay` (
+                    name, owner, creation, modified, modified_by, docstatus,
+                    oto_no, siparis_no, cari_kod, poz_no, stok_kodu, model, olcu,
+                    pozisyon, aci1, aci2, adet, ercom, sayac, montaj_yeri, kasa_no,
+                    yer_no, kanat_no, araba_no, rc, program_no, islem, bayi_adi,
+                    eksen, yukseklik, sol_ic, sag_ic, orta, da_kapi, ds_kodu,
+                    ds_boyu, profil_tipi, hesap_kodu, esiksiz, wc, kanat_index,
+                    sanal_adet, aciklama, uretim_sayac, musteri, makina_no, barkod
+                )
+                VALUES %s
+            """
+
+            # Convert the values list into a string of SQL value placeholders
+            placeholders = ", ".join(
+                ["(" + ", ".join(["%s"] * len(values[0])) + ")" for _ in values]
+            )
+
+            # Insert the placeholders into the SQL query
+            sql = sql % placeholders
+
+            # Execute the query with flattened values
+            frappe.db.sql(sql, [val for tup in values for val in tup])
+            frappe.db.commit()
+
+        return {
+            "status": "ok",
+            "message": _("TesDetay synchronized successfully."),
+            "inserted_doc_count": data_len,
+        }
 
     except (frappe.ValidationError, Exception) as e:
         error_message = f"Error during sync: {str(e)}"
@@ -110,23 +144,37 @@ def sync_tes_detay(order_no=None):
         logger.info("Connection pool is closed.")
 
 
+@timer
 def get_tesdetay_data(pool, order_no=None):
     print("\n\n\n---Get Tesdetay Data---")
+
     # query = """
     #     SELECT td.*, t.*, s.MUSTERISI
     #     FROM dbtesdetay td
     #     LEFT JOIN dbtes t ON td.OTONO = t.OTONO
     #     LEFT JOIN dbsiparis s ON td.SIPARISNO = s.SIPARISNO
-    #     ORDER BY td.OTONO DESC
-    #     LIMIT 300
+    #     WHERE td.SIPARISNO = %(order_no)s
     # """
+
     query = """
-        SELECT td.*, t.*, s.MUSTERISI
+        SELECT MIN(td.SAYAC) as SAYAC, td.OTONO, td.SIPARISNO, td.CARIKOD,
+               td.POZNO, td.STOKKODU, td.MODEL, td.OLCU, td.POZISYON,
+               td.ACI1, td.ACI2, td.ADET, td.ERCOM, td.MONTAJYERI,
+               td.KASANO, td.YERNO, td.KANATNO, td.ARABANO, td.RC,
+               td.PROGRAMNO, td.ISLEM, td.BAYIADI, td.EKSEN, td.YUKSEKLIK,
+               td.SOLIC, td.SAGIC, td.ORTA, td.DAKAPI, td.DSKODU,
+               td.DSBOYU, td.PROFILTIPI, td.HESAPKODU, td.ESIKSIZ,
+               td.WC, td.KANATINDEX, td.SANALADET, td.ACIKLAMA,
+               td.URETIMSAYAC, td.MAKINANO, t.*, s.MUSTERISI
         FROM dbtesdetay td
         LEFT JOIN dbtes t ON td.OTONO = t.OTONO
         LEFT JOIN dbsiparis s ON td.SIPARISNO = s.SIPARISNO
         WHERE td.SIPARISNO = %(order_no)s
+        GROUP BY td.ARABANO, td.MODEL, td.EKSEN, td.OLCU, td.STOKKODU,
+                td.RC, td.YERNO, td.POZISYON, td.OTONO, td.POZNO,
+                td.SANALADET, td.URETIMSAYAC
     """
+
     results = pool.execute_query(query, {"order_no": order_no})
     return results
 
@@ -157,5 +205,6 @@ def generate_barcode(araba_no, yer_no, stok_kodu, rc, model, olcu, eksen):
     olcu_processed = str(int(process_measurement(olcu))).rjust(MEASUREMENT_LENGTH, "0")
     eksen_processed = str(int(process_measurement(eksen))).rjust(MEASUREMENT_LENGTH, "0")
 
-    # Generate barcode with consistent spacing
-    return f"K{araba_no_padded}{yer_no_padded}{stok_kodu}   {rc}{olcu_processed}00{eksen_processed}00"
+    spacing = " " * 7 if len(stok_kodu) == 5 else " " * 3
+
+    return f"K{araba_no_padded}{yer_no_padded}{stok_kodu}{spacing}{rc}{olcu_processed}00{eksen_processed}00"

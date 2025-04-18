@@ -11,8 +11,6 @@ def after_insert(doc, method):
 
 
 def add_job_cards_into_camliste(job_card_doc):
-    # TODO: Use bulk insert
-
     rows = []
 
     for i, glass in enumerate(job_card_doc.custom_glasses):
