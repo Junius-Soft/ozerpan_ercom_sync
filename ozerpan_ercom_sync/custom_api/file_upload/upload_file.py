@@ -5,9 +5,6 @@ import frappe
 from frappe import _
 
 from ozerpan_ercom_sync.custom_api.file_upload.dst_file_upload import process_dst_file
-from ozerpan_ercom_sync.custom_api.file_upload.mly_file_upload import (
-    process_mly_file,
-)
 from ozerpan_ercom_sync.custom_api.file_upload.opt_file_upload import process_opt_file
 from ozerpan_ercom_sync.custom_api.utils import (
     generate_logger,
@@ -64,7 +61,7 @@ def process_file_by_category(file: Dict, logger: logging.Logger) -> None:
     file_category = file.get("category", "").lower()
     if file_category.startswith("mly"):
         logger.info("MLY file detected.")
-        process_mly_file(file, logger)
+        # process_mly_file(file, logger)
     elif file_category.startswith("opt"):
         logger.info("OPT file detected.")
         process_opt_file(file, logger)
