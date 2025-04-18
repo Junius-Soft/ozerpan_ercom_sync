@@ -43,6 +43,10 @@ def sync_tes_detay(order_no=None):
                 yer_no=row.get("YERNO"),
             )
 
+            if frappe.db.exists("TesDetay", {"barkod": barcode}):
+                logger.info(f"Duplicate barcode {barcode} found. Skipping record.")
+                continue
+
             td = frappe.new_doc("TesDetay")
             # Map row data to TesDetay fields
             field_mappings = {
@@ -157,5 +161,6 @@ def generate_barcode(araba_no, yer_no, stok_kodu, rc, model, olcu, eksen):
     olcu_processed = str(int(process_measurement(olcu))).rjust(MEASUREMENT_LENGTH, "0")
     eksen_processed = str(int(process_measurement(eksen))).rjust(MEASUREMENT_LENGTH, "0")
 
-    # Generate barcode with consistent spacing
-    return f"K{araba_no_padded}{yer_no_padded}{stok_kodu}   {rc}{olcu_processed}00{eksen_processed}00"
+    spacing = " " * 7 if len(stok_kodu) == 5 else " " * 3
+
+    return f"K{araba_no_padded}{yer_no_padded}{stok_kodu}{spacing}{rc}{olcu_processed}00{eksen_processed}00"
