@@ -23,9 +23,6 @@ def sync_tes_detay(order_no=None):
         data = get_tesdetay_data(pool, order_no)
         data_len = len(data)
 
-        print(f"\n\n\nData Length: {data_len}")
-        print(f"Order No: {order_no}\n\n\n")
-
         values = []
         for i, row in enumerate(data):
             show_progress(

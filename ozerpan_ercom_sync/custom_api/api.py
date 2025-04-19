@@ -92,7 +92,7 @@ def get_surme_poz_by_order_no():
 def process_excel_file(file_url: str) -> Dict[str, Any]:
     try:
         if not file_url:
-            _create_error_response("No file URL provided", "Validation")
+            return _create_error_response("No file URL provided", "Validation")
 
         manager = ExcelProcessingManager()
         result = manager.process_file(file_url)

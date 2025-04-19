@@ -49,8 +49,6 @@ class MLYListProcessor(ExcelProcessorInterface):
             poz_data = self._get_poz_data(file_info.order_no)
             sync_tes_detay(order_no=file_info.order_no)
 
-            print("File Info:", file_info)
-
             # Get and update sales order
             sales_order = self._get_sales_order(file_info.order_no)
             self._update_sales_order_taxes(sales_order)
@@ -76,16 +74,16 @@ class MLYListProcessor(ExcelProcessorInterface):
                     )
                     continue
 
-            # if missing_items:
-            #     frappe.throw(
-            #         title="Eksik Ürünler Tespit Edildi",
-            #         msg="<br>".join(
-            #             [
-            #                 f"• {item.get('type')} - {item.get('stock_code')} (Sipariş: {item.get('order_no')}, Poz: {item.get('poz_no')})"
-            #                 for item in missing_items
-            #             ]
-            #         ),
-            #     )
+            if missing_items:
+                frappe.throw(
+                    title="Eksik Ürünler Tespit Edildi",
+                    msg="<br>".join(
+                        [
+                            f"• {item.get('type')} - {item.get('stock_code')} (Sipariş: {item.get('order_no')}, Poz: {item.get('poz_no')})"
+                            for item in missing_items
+                        ]
+                    ),
+                )
 
             # Update sales order items
             self._update_sales_order_items(sales_order, processed_sheets)
@@ -163,7 +161,6 @@ class MLYListProcessor(ExcelProcessorInterface):
             total_price = tail["Toplam Fiyat"].iloc[0]
 
             item = self._create_item(item_code, total_price, poz_data)
-
             grouped_dfs = {
                 group: pd.DataFrame(items) if items else pd.DataFrame()
                 for group, items in groups.items()
@@ -352,8 +349,12 @@ class MLYListProcessor(ExcelProcessorInterface):
                     }
                 )
 
+        middle_operations = mly_helper.get_middle_operations(profile_group)
+        if middle_operations is None:
+            frappe.throw("Middle operations not found for main profile group")
+
         # Add operations
-        self._add_operations_to_bom(bom, mly_helper.get_middle_operations(profile_group))
+        self._add_operations_to_bom(bom, middle_operations)
 
         bom.set("items", items_table)
         bom.set("custom_accessory_kits", accessory_kits_table)
@@ -479,12 +480,12 @@ class MLYListProcessor(ExcelProcessorInterface):
 
     def _add_operations_to_bom(self, bom: Any, middle_operations: List[str]) -> None:
         """Add operations to BOM"""
+
         fixed_starting_operations = ["Profil Temin", "Sac Kesim"]
         fixed_ending_operations = ["Çıta", "Kalite"]
         full_operations = (
             fixed_starting_operations + middle_operations + fixed_ending_operations
         )
-
         operation_items = []
         for operation_name in full_operations:
             o = frappe.get_doc("Operation", operation_name)
