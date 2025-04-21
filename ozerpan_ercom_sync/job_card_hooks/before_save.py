@@ -10,7 +10,12 @@ def before_save(doc, method) -> None:
     print("\n\n\n-- Job Card Before Save --")
     production_item = doc.production_item
     operation_name = doc.operation
-    order_no, poz_no = production_item.split("-")
+
+    # order_no, poz_no = production_item.split("-")
+    parts = production_item.split("-")
+    if len(parts) >= 2:
+        order_no = parts[0]
+        poz_no = parts[1]
 
     if operation_name == "Profil Temin" or operation_name == "Sac Kesim":
         return
