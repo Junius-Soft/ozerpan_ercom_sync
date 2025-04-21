@@ -17,6 +17,13 @@ MIDDLE_OPERATIONS = {
             "Kanat Bağlama",
         ],
         "KANAT": ["Kaynak Köşe Temizleme", "Kanat Hazırlık"],
+        "KAYIT": ["Kaynak Köşe Temizleme", "Orta Kayıt"],
+        "KAYIT_KANAT": [
+            "Kaynak Köşe Temizleme",
+            "Orta Kayıt",
+            "Kanat Hazırlık",
+            "Kanat Bağlama",
+        ],
     },
     "ACILI": {
         "KASA": ["Sürme Hazırlık"],
@@ -82,3 +89,7 @@ def get_middle_operations(profile_group):
         return MIDDLE_OPERATIONS[operation_type]["KASA"]
     elif "KANAT" in profiles:
         return MIDDLE_OPERATIONS[operation_type]["KANAT"]
+    elif "KAYIT" in profiles:
+        return MIDDLE_OPERATIONS[operation_type]["KAYIT"]
+    elif "KAYIT_KANAT" in profiles:
+        return MIDDLE_OPERATIONS[operation_type]["KAYIT_KANAT"]
