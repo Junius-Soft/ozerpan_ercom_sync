@@ -17,6 +17,13 @@ MIDDLE_OPERATIONS = {
             "Kanat Bağlama",
         ],
         "KANAT": ["Kaynak Köşe Temizleme", "Kanat Hazırlık"],
+        "KAYIT": ["Kaynak Köşe Temizleme", "Orta Kayıt"],
+        "KAYIT_KANAT": [
+            "Kaynak Köşe Temizleme",
+            "Orta Kayıt",
+            "Kanat Hazırlık",
+            "Kanat Bağlama",
+        ],
     },
     "ACILI": {
         "KASA": ["Sürme Hazırlık"],
