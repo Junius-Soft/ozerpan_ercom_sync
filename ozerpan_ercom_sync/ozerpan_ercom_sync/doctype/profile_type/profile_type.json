@@ -27,6 +27,7 @@
    "fieldname": "description",
    "fieldtype": "Data",
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Description"
   },
   {
@@ -40,7 +41,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2024-12-27 09:24:29.220006",
+ "modified": "2025-04-22 14:57:51.803045",
  "modified_by": "Administrator",
  "module": "Ozerpan Ercom Sync",
  "name": "Profile Type",
