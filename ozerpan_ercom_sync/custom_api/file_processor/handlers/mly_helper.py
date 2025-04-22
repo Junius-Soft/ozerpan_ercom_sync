@@ -16,14 +16,14 @@ MIDDLE_OPERATIONS = {
             "Kanat Hazırlık",
             "Kanat Bağlama",
         ],
-        "KANAT": ["Kaynak Köşe Temizleme", "Kanat Hazırlık"],
-        "KAYIT": ["Kaynak Köşe Temizleme", "Orta Kayıt"],
         "KAYIT_KANAT": [
             "Kaynak Köşe Temizleme",
             "Orta Kayıt",
             "Kanat Hazırlık",
             "Kanat Bağlama",
         ],
+        "KANAT": ["Kaynak Köşe Temizleme", "Kanat Hazırlık"],
+        "KAYIT": ["Kaynak Köşe Temizleme", "Orta Kayıt"],
     },
     "ACILI": {
         "KASA": ["Sürme Hazırlık"],
@@ -76,7 +76,7 @@ def get_middle_operations(profile_group):
             profiles.append("KASA")
         if "KAYIT" in profile and "KAYIT" not in profiles:
             profiles.append("KAYIT")
-        if "KANAT" in profile and "KANAT" not in profiles:
+        if "KANAT" in profile:
             profiles.append("KANAT")
 
     if "KASA" in profiles and "KAYIT" in profiles and "KANAT" in profiles:
@@ -87,9 +87,11 @@ def get_middle_operations(profile_group):
         return MIDDLE_OPERATIONS[operation_type]["KASA_KANAT"]
     elif "KASA" in profiles:
         return MIDDLE_OPERATIONS[operation_type]["KASA"]
+    elif "KAYIT" in profiles and "KANAT" in profiles:
+        return MIDDLE_OPERATIONS[operation_type]["KAYIT_KANAT"]
+    elif "KANAT" in profiles and len(profiles) > 1:
+        return MIDDLE_OPERATIONS[operation_type]["KASA_KAYIT_KANAT"]
     elif "KANAT" in profiles:
         return MIDDLE_OPERATIONS[operation_type]["KANAT"]
     elif "KAYIT" in profiles:
         return MIDDLE_OPERATIONS[operation_type]["KAYIT"]
-    elif "KAYIT_KANAT" in profiles:
-        return MIDDLE_OPERATIONS[operation_type]["KAYIT_KANAT"]
