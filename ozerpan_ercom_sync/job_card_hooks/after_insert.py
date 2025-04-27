@@ -24,8 +24,11 @@ def after_insert(doc, method):
         frappe.throw("-- Handle Cam Operation in after_insert Hook!! --")
     else:
         if doc.is_corrective_job_card:
-            frappe.throw("-- Handle Corrective Barcode operation!! --")
-            pass
+            insert_corrective_job_card_to_operation_states_list(
+                doc=doc,
+                order_no=order_no,
+                poz_no=poz_no,
+            )
         else:
             insert_job_card_to_operation_states_list(
                 doc=doc,
@@ -37,6 +40,47 @@ def after_insert(doc, method):
     doc.save()
 
     print("-- Job Card After Insert -- (End)\n\n")
+
+
+def insert_corrective_job_card_to_operation_states_list(
+    doc: Dict,
+    order_no: str,
+    poz_no: str,
+) -> None:
+    if not doc.custom_target_sanal_adet:
+        return
+
+    tesdetay_list = get_tesdetay_list(
+        order_no=order_no,
+        poz_no=poz_no,
+        target_sanal_adet=doc.custom_target_sanal_adet,
+    )
+
+    for td in tesdetay_list:
+        print(
+            f"{td.get('name')} - {td.get('poz_no')} - {td.get('sanal_adet')} -- {td.get('model')}"
+        )
+
+    operation_states = create_operation_states(tesdetay_list, doc)
+
+    inserted_items = bulk_insert_child_rows(
+        child_table="TesDetay Operation Status",
+        parenttype="TesDetay",
+        parentfield="operation_states",
+        rows=operation_states,
+        extra_fields=["job_card_ref", "status", "operation", "is_corrective"],
+    )
+
+    barcodes = []
+    for item in inserted_items:
+        barcodes.append(
+            {
+                "operation_status_ref": item.get("name"),
+                "tesdetay_ref": item.get("parent"),
+            }
+        )
+
+    doc.set("custom_barcodes", barcodes)
 
 
 def insert_job_card_to_operation_states_list(

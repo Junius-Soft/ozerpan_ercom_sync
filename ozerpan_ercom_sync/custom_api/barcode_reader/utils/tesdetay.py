@@ -70,14 +70,7 @@ def get_tesdetay(barcode: str, operation: str) -> Any:
     if filtered_data:
         min_poz_tesdetay = min(filtered_data, key=lambda x: x.get("poz_no", float("inf")))
         filtered_data = [min_poz_tesdetay]
-
-    for td in filtered_data:
-        print(td.get("name"))
-        print(td.get("siparis_no"), td.get("poz_no"))
-        for os in td.get("operation_states"):
-            print(os)
-
-    if not min_poz_tesdetay:
+    if not filtered_data:
         raise InvalidBarcodeError(f"No TesDetay found for barcode: {barcode}")
     return min_poz_tesdetay
 
