@@ -1,15 +1,161 @@
+from typing import Dict, List
+
+import frappe
+
+from ozerpan_ercom_sync.job_card_hooks.helpers import get_tesdetay_list
 from ozerpan_ercom_sync.utils import bulk_insert_child_rows, timer
 
 
 @timer
 def after_insert(doc, method):
-    print("\n\n\n-- Job Card After Insert --")
+    print("\n\n-- Job Card After Insert -- (Start)")
+    production_item = doc.production_item
+    operation_name = doc.operation
+
+    if operation_name == "Profil Temin" or operation_name == "Sac Kesim":
+        return
+
+    parts = production_item.split("-")
+    if len(parts) >= 2:
+        order_no = parts[0]
+        poz_no = parts[1]
+
     if doc.operation == "Cam":
-        add_job_cards_into_camliste(doc)
+        frappe.throw("-- Handle Cam Operation in after_insert Hook!! --")
     else:
-        add_job_cards_into_tesdetay(doc)
+        if doc.is_corrective_job_card:
+            insert_corrective_job_card_to_operation_states_list(
+                doc=doc,
+                order_no=order_no,
+                poz_no=poz_no,
+            )
+        else:
+            insert_job_card_to_operation_states_list(
+                doc=doc,
+                order_no=order_no,
+                poz_no=poz_no,
+            )
+
+    doc.flags.from_after_insert = True
+    doc.save()
+
+    print("-- Job Card After Insert -- (End)\n\n")
 
 
+def insert_corrective_job_card_to_operation_states_list(
+    doc: Dict,
+    order_no: str,
+    poz_no: str,
+) -> None:
+    if not doc.custom_target_sanal_adet:
+        return
+
+    tesdetay_list = get_tesdetay_list(
+        order_no=order_no,
+        poz_no=poz_no,
+        target_sanal_adet=doc.custom_target_sanal_adet,
+    )
+
+    for td in tesdetay_list:
+        print(
+            f"{td.get('name')} - {td.get('poz_no')} - {td.get('sanal_adet')} -- {td.get('model')}"
+        )
+
+    operation_states = create_operation_states(tesdetay_list, doc)
+
+    inserted_items = bulk_insert_child_rows(
+        child_table="TesDetay Operation Status",
+        parenttype="TesDetay",
+        parentfield="operation_states",
+        rows=operation_states,
+        extra_fields=["job_card_ref", "status", "operation", "is_corrective"],
+    )
+
+    barcodes = []
+    for item in inserted_items:
+        barcodes.append(
+            {
+                "operation_status_ref": item.get("name"),
+                "tesdetay_ref": item.get("parent"),
+            }
+        )
+
+    doc.set("custom_barcodes", barcodes)
+
+
+def insert_job_card_to_operation_states_list(
+    doc: Dict,
+    order_no: str,
+    poz_no: str,
+) -> None:
+    tesdetay_list = get_filtered_tesdetay_list(doc, order_no, poz_no)
+    selected_tesdetays = select_target_tesdetay(tesdetay_list, doc.for_quantity)
+
+    operation_states = create_operation_states(selected_tesdetays, doc)
+
+    inserted_items = bulk_insert_child_rows(
+        child_table="TesDetay Operation Status",
+        parenttype="TesDetay",
+        parentfield="operation_states",
+        rows=operation_states,
+        extra_fields=["job_card_ref", "status", "operation", "is_corrective"],
+    )
+
+    barcodes = []
+    for item in inserted_items:
+        barcodes.append(
+            {
+                "operation_status_ref": item.get("name"),
+                "tesdetay_ref": item.get("parent"),
+            }
+        )
+
+    # barcodes = sorted(barcodes, key=lambda x: int(x["sanal_adet"]))
+    doc.set("custom_barcodes", barcodes)
+
+
+def get_filtered_tesdetay_list(
+    doc: Dict,
+    order_no: str,
+    poz_no: str,
+) -> List[Dict]:
+    tesdetay_list = get_tesdetay_list(order_no=order_no, poz_no=poz_no)
+
+    return [
+        td
+        for td in tesdetay_list
+        if not any(
+            os.get("operation") == doc.operation for os in td.get("operation_states", [])
+        )
+    ]
+
+
+def select_target_tesdetay(tesdetay_list: List[Dict], quantity: int) -> List[Dict]:
+    sorted_tesdetay = sorted(tesdetay_list, key=lambda x: int(x["sanal_adet"]))
+    unique_sanal_adet = sorted(
+        list(set(td["sanal_adet"] for td in sorted_tesdetay)), key=int
+    )
+
+    target_sanal_adet = unique_sanal_adet[:quantity]
+
+    return [td for td in sorted_tesdetay if td["sanal_adet"] in target_sanal_adet]
+
+
+def create_operation_states(tesdetays: List, doc: Dict) -> List[Dict]:
+    """Create operation states records for bulk insert."""
+    return [
+        {
+            "parent": td.get("name"),
+            "job_card_ref": doc.name,
+            "status": "Pending",
+            "operation": doc.operation,
+            "is_corrective": doc.is_corrective_job_card,
+        }
+        for td in tesdetays
+    ]
+
+
+########################################################################
 def add_job_cards_into_camliste(job_card_doc):
     rows = []
 

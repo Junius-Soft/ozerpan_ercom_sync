@@ -67,6 +67,8 @@ def is_job_fully_complete(job_card: Any) -> bool:
 @timer
 def get_job_card(operation: str, production_item: str, barcode: str) -> Any:
     # First get all active job cards matching the basic criteria
+    print("Production Item:", production_item)
+    print("Barcode:", barcode)
     active_job_cards = frappe.get_all(
         "Job Card",
         filters={

@@ -166,6 +166,7 @@ doc_events = {
     },
     "Job Card": {
         "before_save": "ozerpan_ercom_sync.job_card_hooks.before_save.before_save",
+        # "before_insert": "ozerpan_ercom_sync.job_card_hooks.before_insert.before_insert",
         "after_insert": "ozerpan_ercom_sync.job_card_hooks.after_insert.after_insert",
         "on_trash": "ozerpan_ercom_sync.job_card_hooks.on_trash.on_trash",
     },

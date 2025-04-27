@@ -33,14 +33,15 @@ class BarcodeReader:
         operation: str,
         quality_data: Optional[Dict] = None,
     ) -> Dict[str, Any]:
+        print("\n\n\n")
         print("--- Reader.read_barcode ---")
-        tesdetay = get_tesdetay(barcode)
+        tesdetay = get_tesdetay(barcode=barcode, operation=operation)
         if not tesdetay:
             raise InvalidBarcodeError("Invalid Barcode")
 
         job_card = get_job_card(
             operation=operation,
-            production_item=f"{tesdetay.siparis_no}-{tesdetay.poz_no}",
+            production_item=f"{tesdetay.get('siparis_no')}-{tesdetay.get('poz_no')}",
             barcode=barcode,
         )
 

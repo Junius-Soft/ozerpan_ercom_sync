@@ -26,22 +26,43 @@ class KaynakKoseHandler(OperationHandler):
         self, job_card: Any, current_barcode: BarcodeInfo
     ) -> List[BarcodeInfo]:
         """Group barcodes by model and sanal_adet."""
-        return [
-            BarcodeInfo(
-                barcode=b.barcode,
-                model=b.model,
-                sanal_adet=int(b.sanal_adet),
-                tesdetay_ref=b.tesdetay_ref,
-                status=BarcodeStatus(b.status),
-                job_card_ref=job_card.name,
-                quality_data=b.quality_data,
-            )
-            for b in job_card.custom_barcodes
-            if (
-                b.model == current_barcode.model
-                and int(b.sanal_adet) == int(current_barcode.sanal_adet)
-            )
-        ]
+        result = []
+        if current_barcode.model == "KASA":
+            # Include both KASA and KAYIT models
+            for b in job_card.custom_barcodes:
+                if b.model in ["KASA", "KAYIT"] and int(b.sanal_adet) == int(
+                    current_barcode.sanal_adet
+                ):
+                    result.append(
+                        BarcodeInfo(
+                            barcode=b.barcode,
+                            model=b.model,
+                            sanal_adet=int(b.sanal_adet),
+                            tesdetay_ref=b.tesdetay_ref,
+                            status=BarcodeStatus(b.status),
+                            job_card_ref=job_card.name,
+                            quality_data=b.quality_data,
+                        )
+                    )
+        else:
+            # Original logic for other models
+            result = [
+                BarcodeInfo(
+                    barcode=b.barcode,
+                    model=b.model,
+                    sanal_adet=int(b.sanal_adet),
+                    tesdetay_ref=b.tesdetay_ref,
+                    status=BarcodeStatus(b.status),
+                    job_card_ref=job_card.name,
+                    quality_data=b.quality_data,
+                )
+                for b in job_card.custom_barcodes
+                if (
+                    b.model == current_barcode.model
+                    and int(b.sanal_adet) == int(current_barcode.sanal_adet)
+                )
+            ]
+        return result
 
     @timer
     def handle_barcode(
@@ -106,9 +127,6 @@ class KaynakKoseHandler(OperationHandler):
         tesdetay = frappe.get_doc("TesDetay", barcode.tesdetay_ref)
         uncompleted_jobs = []
 
-        print("\n\n\n")
-        print("UnCompleted:", uncompleted_jobs)
-        print("\n\n\n")
         for op_state in tesdetay.operation_states:
             try:
                 job_card = frappe.get_doc("Job Card", op_state.job_card_ref)
