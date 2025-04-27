@@ -1,5 +1,6 @@
 import time
 from functools import wraps
+from typing import Dict, List
 
 import frappe
 import pymysql
@@ -45,7 +46,13 @@ def get_mysql_connection():
     return connection
 
 
-def bulk_insert_child_rows(child_table, parenttype, parentfield, rows, extra_fields=None):
+def bulk_insert_child_rows(
+    child_table: str,
+    parenttype: str,
+    parentfield: str,
+    rows: List[Dict],
+    extra_fields=None,
+) -> List[Dict]:
     """
     Bulk insert into a child table using raw SQL.
 
@@ -55,10 +62,13 @@ def bulk_insert_child_rows(child_table, parenttype, parentfield, rows, extra_fie
         parentfield (str): The table field in parent (e.g., "operation_states")
         rows (list of dict): Each dict must have a `parent` key, plus other required fields
         extra_fields (list): Optional extra field names to include in insert
+
+    Returns:
+        List[str]: Names of all inserted rows
     """
 
     if not rows:
-        return
+        return []
 
     fields = [
         "name",
@@ -72,15 +82,19 @@ def bulk_insert_child_rows(child_table, parenttype, parentfield, rows, extra_fie
     ]
 
     values = []
+    inserted_items = []
 
     if extra_fields:
         fields.extend(extra_fields)
 
     for i, row in enumerate(rows):
+        name = generate_hash()
+        parent_name = row["parent"]
+        inserted_items.append({"name": name, "parent": parent_name})
         base = {
-            "name": generate_hash(),
+            "name": name,
             "parentfield": parentfield,
-            "parent": row["parent"],
+            "parent": parent_name,
             "parenttype": parenttype,
             "creation": now(),
             "owner": frappe.session.user,
@@ -102,6 +116,8 @@ def bulk_insert_child_rows(child_table, parenttype, parentfield, rows, extra_fie
     """
 
     frappe.db.sql(sql, tuple(values))
+
+    return inserted_items
 
 
 def bulk_delete_child_rows(child_table, parent_field, references):

@@ -12,7 +12,6 @@
   "barkod",
   "makina_no",
   "stok_kodu",
-  "operation_states",
   "column_break_jgni",
   "siparis_no",
   "poz_no",
@@ -20,6 +19,8 @@
   "model",
   "pozisyon",
   "sayac",
+  "section_break_atwt",
+  "operation_states",
   "quality_data",
   "section_break_drsa",
   "adet",
@@ -83,6 +84,8 @@
   {
    "fieldname": "poz_no",
    "fieldtype": "Int",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Poz No"
   },
   {
@@ -259,9 +262,12 @@
   {
    "fieldname": "sanal_adet",
    "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Sanal Adet"
   },
   {
+   "columns": 3,
    "fieldname": "barkod",
    "fieldtype": "Data",
    "in_list_view": 1,
@@ -296,11 +302,15 @@
    "fieldname": "musteri",
    "fieldtype": "Data",
    "label": "Musteri"
+  },
+  {
+   "fieldname": "section_break_atwt",
+   "fieldtype": "Section Break"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-03-17 09:29:25.158249",
+ "modified": "2025-04-23 13:12:11.814473",
  "modified_by": "Administrator",
  "module": "Ozerpan Ercom Sync",
  "name": "TesDetay",

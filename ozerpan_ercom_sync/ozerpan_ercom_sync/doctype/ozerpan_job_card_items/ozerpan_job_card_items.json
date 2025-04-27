@@ -14,7 +14,8 @@
   "sanal_adet",
   "status",
   "tesdetay_ref",
-  "quality_data"
+  "quality_data",
+  "operation_status_ref"
  ],
  "fields": [
   {
@@ -22,62 +23,78 @@
    "fieldtype": "Section Break"
   },
   {
+   "fetch_from": "tesdetay_ref.model",
    "fieldname": "model",
-   "fieldtype": "Select",
+   "fieldtype": "Read Only",
    "in_list_view": 1,
    "label": "Model",
    "options": "\nKASA\nA\u00c7ILI KASA\nS\u00dcRME KASA\nKEMERL\u0130 KASA\nKANAT\nA\u00c7ILI KANAT\nS\u00dcRME KANAT\nKEMERL\u0130 KANAT\nKAYIT\nA\u00c7ILI ORTAKAYIT\nS\u00dcRME ORTAKAYIT\nKEMERL\u0130 ORTAKAYIT"
   },
   {
+   "fetch_from": "tesdetay_ref.barkod",
    "fieldname": "barcode",
-   "fieldtype": "Data",
+   "fieldtype": "Read Only",
    "in_list_view": 1,
    "label": "Barcode"
   },
   {
    "columns": 1,
+   "fetch_from": "tesdetay_ref.stok_kodu",
    "fieldname": "stock_code",
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Stock Code",
-   "options": "Item"
+   "options": "Item",
+   "read_only": 1
   },
   {
    "columns": 1,
+   "fetch_from": "tesdetay_ref.poz_no",
    "fieldname": "poz_no",
-   "fieldtype": "Int",
+   "fieldtype": "Read Only",
    "in_list_view": 1,
    "label": "Poz No"
   },
   {
    "columns": 1,
+   "fetch_from": "tesdetay_ref.sanal_adet",
    "fieldname": "sanal_adet",
-   "fieldtype": "Int",
+   "fieldtype": "Read Only",
    "in_list_view": 1,
    "label": "Sanal Adet"
   },
   {
+   "fetch_from": "operation_status_ref.status",
    "fieldname": "status",
-   "fieldtype": "Select",
-   "label": "Status",
-   "options": "\nPending\nIn Progress\nIn Correction\nCompleted"
+   "fieldtype": "Read Only",
+   "label": "Status"
   },
   {
    "fieldname": "tesdetay_ref",
    "fieldtype": "Link",
+   "in_list_view": 1,
    "label": "TesDetay",
-   "options": "TesDetay"
+   "options": "TesDetay",
+   "read_only": 1
   },
   {
    "fieldname": "quality_data",
    "fieldtype": "JSON",
-   "label": "Quality Data"
+   "label": "Quality Data",
+   "read_only": 1
+  },
+  {
+   "fieldname": "operation_status_ref",
+   "fieldtype": "Link",
+   "label": "Operation Status Ref",
+   "options": "TesDetay Operation Status",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2025-02-25 15:31:18.091502",
+ "modified": "2025-04-25 15:00:17.605139",
  "modified_by": "Administrator",
  "module": "Ozerpan Ercom Sync",
  "name": "Ozerpan Job Card Items",
