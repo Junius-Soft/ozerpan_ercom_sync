@@ -3,6 +3,12 @@ from typing import Any, Dict, List, Optional, TypedDict
 import frappe
 from frappe import _
 
+from ozerpan_ercom_sync.custom_api.barcode_reader.utils.job_card import (
+    complete_job,
+    submit_job_card,
+    update_job_card_status,
+)
+
 from .barcode_reader.exceptions import (
     BarcodeError,
     InvalidBarcodeError,
@@ -59,6 +65,70 @@ def _get_current_glass(glass_name: str) -> Any:
 def _get_related_glasses(order_no: str, poz_no: str) -> List[Dict]:
     filters = {"order_no": order_no, "poz_no": poz_no}
     return frappe.get_all("CamListe", filters=filters, fields=["*"])
+
+
+###########################
+
+
+@frappe.whitelist()
+def update_job_cards():
+    print("\n\n-- Update Job Cards -- (Start)")
+    form_data = frappe.form_dict
+    target_status = form_data.status
+    employee = form_data.employee
+    reason = form_data.reason
+
+    missing_job_cards = []
+    messages = []
+
+    for jc_name in form_data.job_cards:
+        try:
+            jc_doc = frappe.get_doc("Job Card", jc_name)
+        except frappe.DoesNotExistError:
+            missing_job_cards.append(jc_name)
+            continue
+
+        if jc_doc.status == target_status:
+            messages.append(f"Job Card is already {jc_doc.status}: {jc_doc.name}")
+            continue
+
+        if jc_doc.status == "Completed":
+            messages.append(f"Job Card is already completed: {jc_doc.name}")
+            continue
+
+        if target_status == "Completed":
+            if jc_doc.status != "Work In Progress":
+                messages.append(
+                    f"Only Work In Progress Job Cards can be completed: {jc_doc.name} - {jc_doc.status}"
+                )
+                continue
+            complete_job(jc_doc, jc_doc.for_quantity)
+            submit_job_card(jc_doc)
+            messages.append(
+                f"Job Card successfully completed: {jc_doc} - {target_status}"
+            )
+
+        elif target_status in ["Work In Progress", "On Hold"]:
+            update_job_card_status(
+                job_card=jc_doc,
+                status=target_status,
+                employee=employee,
+                reason=reason,
+            )
+            messages.append(
+                f"Job Card status changed successfully: {jc_doc} - {target_status}"
+            )
+
+    response = {}
+    if missing_job_cards:
+        response["missing_job_cards"] = missing_job_cards
+
+    if messages:
+        response["messages"] = messages
+
+    print("-- Update Job Cards -- (End)\n\n")
+
+    return response
 
 
 ###########################

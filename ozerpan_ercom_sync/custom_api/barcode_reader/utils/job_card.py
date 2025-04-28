@@ -26,6 +26,7 @@ def update_job_card_status(
     job_card: Any,
     status: str,
     employee: Optional[str] = None,
+    reason: Optional[str] = None,
 ) -> None:
     job_card.status = status
 
@@ -45,6 +46,7 @@ def update_job_card_status(
         for time_log in job_card.time_logs:
             if not time_log.to_time:  # Find the open time log
                 time_log.to_time = frappe.utils.now()
+                time_log.custom_reason = reason
                 break
     save_with_retry(job_card)
 
