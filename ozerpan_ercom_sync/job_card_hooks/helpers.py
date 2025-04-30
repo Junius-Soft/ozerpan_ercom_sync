@@ -4,12 +4,21 @@ import frappe
 
 
 def get_glass_list(
-    order_no: str, poz_no: str, target_sanal_adet: Optional[str] = None
+    order_no: str,
+    poz_no: str,
+    target_sanal_adet: Optional[str] = None,
+    glass_stock_code: Optional[str] = None,
 ) -> List[Dict]:
-    filters = {"order_no": order_no, "poz_no": poz_no}
+    filters = {
+        "order_no": order_no,
+        "poz_no": poz_no,
+    }
 
     if target_sanal_adet is not None:
         filters["sanal_adet"] = target_sanal_adet
+
+    if glass_stock_code is not None:
+        filters["stok_kodu"] = glass_stock_code
 
     results = frappe.db.sql(
         """
@@ -30,11 +39,15 @@ def get_glass_list(
         WHERE gl.order_no = %(order_no)s
         AND gl.poz_no = %(poz_no)s
         {sanal_adet_filter}
+        {glass_stock_code_filter}
         ORDER BY gl.name, jc.idx
         """.format(
             sanal_adet_filter="AND gl.sanal_adet = %(sanal_adet)s"
             if target_sanal_adet is not None
-            else ""
+            else "",
+            glass_stock_code_filter="AND gl.stok_kodu = %(stok_kodu)s"
+            if glass_stock_code is not None
+            else "",
         ),
         filters,
         as_dict=1,
@@ -88,9 +101,6 @@ def get_tesdetay_list(
     """
     print("\n\n-- Get TesDetay List Helper -- (Start)")
     filters = {"siparis_no": order_no, "poz_no": poz_no}
-
-    print("Order No:", order_no)
-    print("Poz No:", poz_no)
 
     if target_sanal_adet is not None:
         filters["sanal_adet"] = target_sanal_adet
