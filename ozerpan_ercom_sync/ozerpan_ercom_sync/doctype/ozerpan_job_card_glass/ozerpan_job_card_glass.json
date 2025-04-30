@@ -13,6 +13,7 @@
   "sanal_adet",
   "status",
   "glass_ref",
+  "glass_operation_ref",
   "quality_data"
  ],
  "fields": [
@@ -21,23 +22,25 @@
    "fieldtype": "Section Break"
   },
   {
+   "fetch_from": "glass_ref.poz_no",
    "fieldname": "poz_no",
-   "fieldtype": "Int",
+   "fieldtype": "Read Only",
    "in_list_view": 1,
    "label": "Poz No"
   },
   {
+   "fetch_from": "glass_ref.sanal_adet",
    "fieldname": "sanal_adet",
-   "fieldtype": "Data",
+   "fieldtype": "Read Only",
    "in_list_view": 1,
    "label": "Sanal Adet"
   },
   {
+   "fetch_from": "glass_operation_ref.status",
    "fieldname": "status",
-   "fieldtype": "Select",
+   "fieldtype": "Read Only",
    "in_list_view": 1,
-   "label": "Status",
-   "options": "Pending\nIn Progress\nIn Correction\nCompleted"
+   "label": "Status"
   },
   {
    "fieldname": "quality_data",
@@ -45,14 +48,16 @@
    "label": "Quality Data"
   },
   {
+   "fetch_from": "glass_ref.order_no",
    "fieldname": "order_no",
-   "fieldtype": "Data",
+   "fieldtype": "Read Only",
    "in_list_view": 1,
    "label": "Order No"
   },
   {
+   "fetch_from": "glass_ref.stok_kodu",
    "fieldname": "stock_code",
-   "fieldtype": "Data",
+   "fieldtype": "Read Only",
    "in_list_view": 1,
    "label": "Stock Code"
   },
@@ -61,12 +66,18 @@
    "fieldtype": "Link",
    "label": "Glass",
    "options": "CamListe"
+  },
+  {
+   "fieldname": "glass_operation_ref",
+   "fieldtype": "Link",
+   "label": "Glass Operation Ref",
+   "options": "CamListe Job Card"
   }
  ],
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2025-03-24 12:01:38.579588",
+ "modified": "2025-04-28 20:28:54.644395",
  "modified_by": "Administrator",
  "module": "Ozerpan Ercom Sync",
  "name": "Ozerpan Job Card Glass",

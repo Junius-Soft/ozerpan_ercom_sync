@@ -239,6 +239,8 @@ class MLYListProcessor(ExcelProcessorInterface):
                 "item_group": "All Item Groups",
                 "stock_uom": "Nos",
                 "valuation_rate": total_price,
+                "has_serial_no": 1,
+                "serial_no_series": f"{item_code}-.#",
                 "description": poz_data.get("ACIKLAMA"),
                 "custom_serial": poz_data.get("SERI"),
                 "custom_width": poz_data.get("GENISLIK"),
@@ -332,7 +334,12 @@ class MLYListProcessor(ExcelProcessorInterface):
         for _, row in df.iterrows():
             stock_code = row["Stok Kodu"].lstrip("#")
             if stock_code in glass_stock_codes:
-                glass_item = self._handle_glass_item(row, item_name, stock_code)
+                glass_item = self._handle_glass_item(
+                    row=row,
+                    item_name=item_name,
+                    stock_code=stock_code,
+                    for_qty=qty,
+                )
                 items_table.append(glass_item)
                 continue
 
@@ -387,7 +394,13 @@ class MLYListProcessor(ExcelProcessorInterface):
             "rate": rate,
         }
 
-    def _handle_glass_item(self, row: Dict, item_name: str, stock_code: str) -> Dict:
+    def _handle_glass_item(
+        self,
+        row: Dict,
+        item_name: str,
+        stock_code: str,
+        for_qty: int,
+    ) -> Dict:
         """Create Glass Item"""
         print("\n")
         print("-- Create Glass Item --")
@@ -413,6 +426,9 @@ class MLYListProcessor(ExcelProcessorInterface):
                 "stock_uom": "Nos",
                 "descrioption": row.get("Açıklama", ""),
                 "valuation_rate": get_float_value(str(row.get("Toplam Fiyat", "0.0"))),
+                "custom_quantity": for_qty,
+                "has_serial_no": 1,
+                "serial_no_series": f"{glass_item_name}-.#",
             }
         )
 
@@ -422,7 +438,7 @@ class MLYListProcessor(ExcelProcessorInterface):
         bom = frappe.new_doc("BOM")
         bom.item = glass_item_name
         bom.company = company
-        bom.quantity = 1
+        bom.quantity = for_qty
         bom.rm_cost_as_per = "Price List"
         bom.buying_price_list = "Standard Selling"
 
@@ -430,14 +446,14 @@ class MLYListProcessor(ExcelProcessorInterface):
         for item in glass_recipe.cam_mutable_items:
             uom = item.get("uom")
             item_qty = item.get("qty", 0.0)
-            glass_qty = get_float_value(row.get("Miktar", 1.0))
+            glass_qty = get_float_value(row.get("miktar", 1.0))
             qty = item_qty * glass_qty
             bom_items_table.append(
                 {
                     "item_code": item.get("item_code"),
                     "item_name": item.get("item_code"),
                     "uom": item.get("uom"),
-                    "qty": round(qty) if uom == "Adet" else qty,
+                    "qty": round(qty) if uom == "adet" else qty,
                 }
             )
 
@@ -456,27 +472,25 @@ class MLYListProcessor(ExcelProcessorInterface):
             "operations",
             [
                 {
-                    "operation": "Cam",
-                    "workstation": "Cam Kalite Kontrol ve Etiket",
+                    "operation": "cam",
+                    "workstation": "cam kalite kontrol ve etiket",
                     "time_in_mins": 10,
                 }
             ],
         )
 
         bom.set("items", bom_items_table)
-        bom.save(ignore_permissions=True)
+        bom.save(ignore_permissions=true)
         bom.submit()
 
         return {
             "item_code": glass_item.get("item_code"),
             "item_name": glass_item.get("item_name"),
             "description": glass_item.get("description"),
-            "uom": "Nos",
-            "qty": 1,
+            "uom": "nos",
+            "qty": for_qty,
             "rate": glass_item.valuation_rate,
         }
-
-        print("\n")
 
     def _add_operations_to_bom(self, bom: Any, middle_operations: List[str]) -> None:
         """Add operations to BOM"""

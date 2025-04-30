@@ -19,7 +19,7 @@ from .types import GlassOperationRequest
 
 class GlassOperationProcessor:
     def process(self, operation_data: GlassOperationRequest) -> Dict[str, any]:
-        print("\n\n\n-- Process --\n\n\n")
+        print("\n\n\n-- Process Glass --\n\n\n")
         raw_quality_data = operation_data.quality_data
         glass_name = operation_data.glass_name
         quality_data = QualityData(**raw_quality_data) if raw_quality_data else None
@@ -36,12 +36,10 @@ class GlassOperationProcessor:
             }
 
         if current_glass.status == "Pending" or current_glass.status == "In Correction":
-            print("--Pending--")
             return self._handle_pending_item(
                 job_card, current_glass, related_glasses, employee
             )
         elif quality_data:
-            print("--Quality Control--")
             return self._handle_quality_control(
                 job_card, current_glass, related_glasses, quality_data, employee
             )
@@ -262,5 +260,4 @@ class GlassOperationProcessor:
             (g for g in job_card.custom_glasses if g.glass_ref == glass_name),
             None,
         )
-
         return glass
