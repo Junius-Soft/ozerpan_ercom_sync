@@ -3,11 +3,16 @@ from typing import Any, Dict, List, Optional, TypedDict
 import frappe
 from frappe import _
 
+from ozerpan_ercom_sync.custom_api.barcode_reader.constants import BarcodeStatus
 from ozerpan_ercom_sync.custom_api.barcode_reader.utils.job_card import (
     complete_job,
+    get_job_card,
+    save_with_retry,
     submit_job_card,
     update_job_card_status,
 )
+from ozerpan_ercom_sync.custom_api.barcode_reader.utils.tesdetay import get_tesdetay
+from ozerpan_ercom_sync.utils import bulk_update_operation_status
 
 from .barcode_reader.exceptions import (
     BarcodeError,
@@ -22,6 +27,54 @@ from .services.surme_service import (
     fetch_surme_orders,
     fetch_surme_poz_details,
 )
+
+
+@frappe.whitelist()
+def revert_latest_barcode_operation(barcode: str, operation: str) -> None:
+    print("\n\n-- Revert Barcode Operation -- (Start)")
+
+    tesdetay = get_tesdetay(barcode=barcode, operation=operation)
+    if not tesdetay:
+        raise InvalidBarcodeError("Invalid Barcode")
+
+    job_card = get_job_card(
+        barcode=barcode,
+        operation=operation,
+        production_item=f"{tesdetay.get('siparis_no')}-{tesdetay.get('poz_no')}",
+    )
+
+    current_os = None
+    for os in tesdetay.get("operation_states"):
+        if os.get("operation") == operation:
+            current_os = os
+
+    if not current_os or current_os.get("status") != "In Progress":
+        frappe.throw("Only items with the status of 'In Progress' can be reverted.")
+
+    tesdetay_refs = [
+        b.tesdetay_ref
+        for b in job_card.get("custom_barcodes")
+        if b.status == "In Progress"
+    ]
+    job_card_refs = [job_card.name] * len(tesdetay_refs)
+
+    bulk_update_operation_status(
+        tesdetay_refs,
+        job_card_refs,
+        BarcodeStatus.PENDING.value,
+    )
+
+    for time_log in job_card.time_logs:
+        if not time_log.to_time:
+            frappe.delete_doc("Job Card Time Log", time_log.name)
+    job_card.status = "On Hold"
+
+    save_with_retry(job_card)
+    print("\n\n-- Revert Barcode Operation -- (End)")
+    return {
+        "barcode": barcode,
+        "operation": operation,
+    }
 
 
 @frappe.whitelist()
