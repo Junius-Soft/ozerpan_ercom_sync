@@ -15,6 +15,7 @@ from ..models.quality_data import QualityData
 from ..utils.job_card import (
     complete_job,
     is_job_fully_complete,
+    save_with_retry,
     submit_job_card,
     update_job_card_status,
 )
@@ -262,6 +263,7 @@ class KaynakKoseHandler(OperationHandler):
             job_card_refs,
             BarcodeStatus.COMPLETED.value,
         )
+        save_with_retry(doc=job_card)
 
     @timer
     def _set_barcodes_in_progress(
