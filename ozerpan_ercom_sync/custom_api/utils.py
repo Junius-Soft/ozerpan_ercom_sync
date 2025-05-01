@@ -24,7 +24,7 @@ def get_float_value(value: str) -> float:
         1234.56
     """
     cleaned_value = (
-        value.lower().replace("tl", "").strip().replace(".", "").replace(",", ".")
+        str(value).lower().replace("tl", "").strip().replace(".", "").replace(",", ".")
     )
     return float(cleaned_value)
 

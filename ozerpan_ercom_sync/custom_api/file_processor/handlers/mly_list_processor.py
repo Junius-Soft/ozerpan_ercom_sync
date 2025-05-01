@@ -480,7 +480,7 @@ class MLYListProcessor(ExcelProcessorInterface):
         )
 
         bom.set("items", bom_items_table)
-        bom.save(ignore_permissions=true)
+        bom.save(ignore_permissions=True)
         bom.submit()
 
         return {
@@ -504,7 +504,11 @@ class MLYListProcessor(ExcelProcessorInterface):
         for operation_name in full_operations:
             o = frappe.get_doc("Operation", operation_name)
             operation_items.append(
-                {"operation": o.name, "workstation": o.workstation, "time_in_mins": 10}
+                {
+                    "operation": o.name,
+                    "workstation": o.workstation,
+                    "time_in_mins": 10,
+                }
             )
 
         bom.with_operations = 1
