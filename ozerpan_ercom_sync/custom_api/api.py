@@ -72,7 +72,7 @@ def revert_latest_barcode_operation(barcode: str, operation: str) -> None:
     save_with_retry(job_card)
     print("\n\n-- Revert Barcode Operation -- (End)")
     return {
-        "barcode": barcode,
+        "tesdetays": tesdetay_refs,
         "operation": operation,
     }
 
