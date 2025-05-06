@@ -1,0 +1,67 @@
+{
+ "actions": [],
+ "autoname": "format:{date}-{production_plan_ref}",
+ "creation": "2025-05-02 11:33:39.904893",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "section_break_ceaa",
+  "date",
+  "production_plan_ref",
+  "capacity_plan_items"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_break_ceaa",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "production_plan_ref",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Production Plan",
+   "options": "Production Plan",
+   "read_only": 1
+  },
+  {
+   "fieldname": "capacity_plan_items",
+   "fieldtype": "Table",
+   "label": "Capacity Plan Items",
+   "options": "Capacity Plan Item"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-05-05 19:48:09.515189",
+ "modified_by": "Administrator",
+ "module": "Ozerpan Ercom Sync",
+ "name": "Capacity",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
