@@ -46,3 +46,10 @@ Sync Ercom,Ercom Senkronize Et
 Upload Excel,Excel Yükle
 Customers synchronized successfully,Müşteriler başarıyla senkronize edildi
 Customer Discount was not applied to the Sales Order,Müşteri İndirimi Satış Siparişine uygulanmadı
+✅ {0} | Workstation: {1} | OK: {2} <= {3},✅ {0} | İş İstasyonu: {1} | TAMAM: {2} <= {3}
+❌ {0} | Workstation: {1} | Overused: {2} > {3},❌ {0} | İş İstasyonu: {1} | Aşırı Kullanım: {2} > {3}
+Warning, Uyarı
+Used Duration, Kullanılan Süre
+Daily Max Duration, Günlük Maksimum Süre
+Percentile Usage, Yüzdelik Kullanım
+Capacity Plan Items, Kapasite Plan Öğeleri

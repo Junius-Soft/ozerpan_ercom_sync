@@ -60,6 +60,7 @@ fixtures = [
 doctype_js = {
     "Sales Order": "public/js/sales_order/sales_order.js",
     "Customer": "public/js/customer/customer.js",
+    # "Production Plan": "public/js/production_plan/production_plan.js",
 }
 doctype_list_js = {
     # "Customer": "public/js/customer/customer_list.js",
@@ -165,16 +166,31 @@ doc_events = {
         "validate": "ozerpan_ercom_sync.sales_order_hooks.validate.validate",
     },
     "Job Card": {
-        "before_save": "ozerpan_ercom_sync.job_card_hooks.before_save.before_save",
+        # "before_save": "ozerpan_ercom_sync.job_card_hooks.before_save.before_save",
         # "before_insert": "ozerpan_ercom_sync.job_card_hooks.before_insert.before_insert",
         "after_insert": "ozerpan_ercom_sync.job_card_hooks.after_insert.after_insert",
         "on_trash": "ozerpan_ercom_sync.job_card_hooks.on_trash.on_trash",
     },
-    # 	"*": {
-    # 		"on_update": "method",
-    # 		"on_cancel": "method",
-    # 		"on_trash": "method"
-    # 	}
+    "Production Plan": {
+        "on_update": "ozerpan_ercom_sync.production_plan_hooks.on_update.on_update",
+        "on_trash": "ozerpan_ercom_sync.production_plan_hooks.on_trash.on_trash",
+        "before_cancel": "ozerpan_ercom_sync.production_plan_hooks.before_cancel.before_cancel",
+    },
+    # "DocType":{
+    #     "before_insert": "", # Before a new document is inserted into the DB
+    #     "after_insert": "", # Right after a new document is inserted
+    #     "validate": "", # Before saving; good for checking data consistency
+    #     "before_save": "", # Just before a document is saved (both new + update)
+    #     "on_update": "", # After saving a document
+    #     "before_submit": "", # Before document is submitted
+    #     "on_submit": "", # After document is submitted
+    #     "before_cancel": "", # Before a document is canceled
+    #     "on_cancel": "", # After document is canceled
+    #     "before_update_after_submit": "", # When updating a submitted document
+    #     "on_update_after_submit": "", # After updating a submitted document
+    #     "on_trash": "", # Before deleting a document
+    #     "after_delete": "", # After deleting a document
+    # }
 }
 
 # Scheduled Tasks
@@ -213,9 +229,11 @@ doc_events = {
 # each overriding function accepts a `data` argument;
 # generated from the base implementation of the doctype dashboard,
 # along with any modifications made in other Frappe apps
-# override_doctype_dashboards = {
-# 	"Task": "ozerpan_ercom_sync.task.get_dashboard_data"
-# }
+
+override_doctype_dashboards = {
+    # "Task": "ozerpan_ercom_sync.task.get_dashboard_data"
+    "Production Plan": "ozerpan_ercom_sync.production_plan_hooks.get_dashboard_data.get_dashboard_data",
+}
 
 # exempt linked doctypes from being automatically cancelled
 #

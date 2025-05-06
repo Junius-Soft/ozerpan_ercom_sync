@@ -1,0 +1,58 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-05-02 11:34:55.020733",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "section_break_qjth",
+  "workstation",
+  "used_duration",
+  "daily_max_duration",
+  "percentile_usage"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_break_qjth",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "workstation",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Workstation",
+   "options": "Workstation"
+  },
+  {
+   "fieldname": "daily_max_duration",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Daily Max Duration"
+  },
+  {
+   "fieldname": "percentile_usage",
+   "fieldtype": "Percent",
+   "in_list_view": 1,
+   "label": "Percentile Usage"
+  },
+  {
+   "fieldname": "used_duration",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Used Duration"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2025-05-05 19:12:10.552296",
+ "modified_by": "Administrator",
+ "module": "Ozerpan Ercom Sync",
+ "name": "Capacity Plan Item",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
