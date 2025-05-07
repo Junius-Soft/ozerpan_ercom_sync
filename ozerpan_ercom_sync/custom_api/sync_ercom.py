@@ -4,7 +4,7 @@ import frappe
 from frappe import _
 
 from ozerpan_ercom_sync.custom_api.utils import generate_logger, show_progress
-from ozerpan_ercom_sync.utils import get_mysql_connection
+from ozerpan_ercom_sync.db_pool import DatabaseConnectionPool
 
 
 @frappe.whitelist()
@@ -27,17 +27,18 @@ def sync_users(logger) -> dict[str, str]:
     """
     logger.info("Starting user sync")
 
-    with get_mysql_connection() as connection:
-        with connection.cursor() as cursor:
-            query: str = "SELECT * FROM dbcari"
-            cursor.execute(query)
-            data: list[dict] = cursor.fetchall()
-
-            if not data:
-                logger.warning("No user data found")
-                return {"message": "No data found"}
-
-            create_users(data, logger)
+    db_pool = DatabaseConnectionPool()
+    try:
+        query: str = "SELECT * FROM dbcari"
+        results = db_pool.execute_query(query)
+        if not results:
+            logger.warning("No user data found")
+            return {"message": "No data found"}
+        create_users(results, logger)
+    except Exception as e:
+        error_msg = f"Error fetching data for dbcari: {str(e)}"
+        frappe.log_error(error_msg)
+        raise frappe.ValidationError(error_msg)
 
     logger.info("User sync completed")
     return {"message": "Sync Completed"}
@@ -179,39 +180,42 @@ def is_valid_phone(phone: str) -> bool:
 
 def sync_orders(logger):
     """Synchronizes orders from MySQL database to Frappe."""
-    with get_mysql_connection() as connection:
-        with connection.cursor() as cursor:
-            LIMIT: int = 350
-            query: str = f"SELECT * FROM dbsiparis ORDER BY SAYAC DESC LIMIT {LIMIT}"
-            # query: str = "SELECT * FROM dbsiparis WHERE SIPARISNO = 'S500883'"
-            cursor.execute(query)
-            data = cursor.fetchall()
+    db_pool = DatabaseConnectionPool()
+    try:
+        LIMIT: int = 350
+        query: str = f"SELECT * FROM dbsiparis ORDER BY SAYAC DESC LIMIT {LIMIT}"
+        query: str = "SELECT * FROM dbsiparis WHERE SIPARISNO = 'S500883'"
+        data = db_pool.execute_query(query)
 
-            if not data:
-                logger.warning("No order data found")
-                return {"message": "No data found."}
+        if not data:
+            logger.warning("No order data found")
+            return {"message": "No data found"}
 
-            logger.info("Starting order sync")
-            placeholder_item = get_placeholder_item()
-            data_len = len(data)
+        logger.info("Starting order sync")
+        placeholder_item = get_placeholder_item()
+        data_len = len(data)
 
-            for i, row in enumerate(data):
-                show_progress(
-                    curr_count=i + 1,
-                    max_count=data_len,
-                    title=_("Sales Order"),
-                    desc=f"Updating Sales Order... {i + 1}/{data_len}",
+        for i, row in enumerate(data):
+            show_progress(
+                curr_count=i + 1,
+                max_count=data_len,
+                title=_("Sales Order"),
+                desc=f"Updating Sales Order... {i + 1}/{data_len}",
+            )
+            try:
+                create_sales_order(
+                    data=row, placeholder_item=placeholder_item, logger=logger
                 )
-                try:
-                    create_sales_order(
-                        data=row, placeholder_item=placeholder_item, logger=logger
-                    )
-                except Exception as e:
-                    logger.error(f"Error creating sales order: {str(e)}")
-                    continue
+            except Exception as e:
+                logger.error(f"Error creating sales order: {str(e)}")
+                continue
 
-            logger.info("Order sync completed")
-            return {"message": "Sync Completed"}
+        logger.info("Order sync completed")
+        return {"message": "Sync Completed"}
+    except Exception as e:
+        error_msg = f"Error fetching data for dbcari: {str(e)}"
+        frappe.log_error(error_msg)
+        raise frappe.ValidationError(error_msg)
 
 
 def create_sales_order(data: dict, placeholder_item: str, logger) -> None:
@@ -237,6 +241,7 @@ def create_sales_order(data: dict, placeholder_item: str, logger) -> None:
         "transaction_date": data.get("SIPTARIHI"),
         "delivery_date": data.get("SEVKTARIHI"),
         "customer": customer.get("name"),
+        "custom_end_customer": data.get("MUSTERISI"),
         "custom_remarks": data.get("NOTLAR"),
         "company": frappe.defaults.get_user_default("company"),
         "order_type": "Sales",

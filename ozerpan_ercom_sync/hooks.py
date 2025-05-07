@@ -171,11 +171,11 @@ doc_events = {
         "after_insert": "ozerpan_ercom_sync.job_card_hooks.after_insert.after_insert",
         "on_trash": "ozerpan_ercom_sync.job_card_hooks.on_trash.on_trash",
     },
-    "Production Plan": {
-        "on_update": "ozerpan_ercom_sync.production_plan_hooks.on_update.on_update",
-        "on_trash": "ozerpan_ercom_sync.production_plan_hooks.on_trash.on_trash",
-        "before_cancel": "ozerpan_ercom_sync.production_plan_hooks.before_cancel.before_cancel",
-    },
+    # "Production Plan": {
+    #     "on_update": "ozerpan_ercom_sync.production_plan_hooks.on_update.on_update",
+    #     "on_trash": "ozerpan_ercom_sync.production_plan_hooks.on_trash.on_trash",
+    #     "before_cancel": "ozerpan_ercom_sync.production_plan_hooks.before_cancel.before_cancel",
+    # },
     # "DocType":{
     #     "before_insert": "", # Before a new document is inserted into the DB
     #     "after_insert": "", # Right after a new document is inserted
