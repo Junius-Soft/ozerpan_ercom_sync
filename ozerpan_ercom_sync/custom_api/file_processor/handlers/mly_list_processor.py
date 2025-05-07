@@ -41,12 +41,13 @@ class MLYListProcessor(ExcelProcessorInterface):
             )
 
     def process(self, file_info: ExcelFileInfo, file_data: bytes) -> Dict[str, Any]:
-        print("-- Process Start --")
+        print("\n\n\n -- Process Start --")
         try:
             sheets = self.read_excel_file(file_data)
 
             # Get poz data from ERCOM database
             poz_data = self._get_poz_data(file_info.order_no)
+            print("Poz Data:", poz_data[0])
             sync_tes_detay(order_no=file_info.order_no)
 
             # Get and update sales order
@@ -116,7 +117,7 @@ class MLYListProcessor(ExcelProcessorInterface):
         try:
             query = """
                 SELECT SAYAC, SIPARISNO, GENISLIK, YUKSEKLIK, ADET, RENK,
-                SERI, ACIKLAMA, NOTLAR, PozID
+                SERI, ACIKLAMA, NOTLAR, PozID, KASAMTUL, KAYITMTUL, KANATMTUL, CAMNET
                 FROM dbpoz WHERE SIPARISNO = %(order_no)s
             """
             results = db_pool.execute_query(query, {"order_no": order_no})
@@ -232,6 +233,14 @@ class MLYListProcessor(ExcelProcessorInterface):
         else:
             item = frappe.new_doc("Item")
 
+            print("Poz")
+
+        qty = poz_data.get("ADET")
+        total_main_profiles_mtul = (
+            poz_data.get("KASAMTUL")
+            + poz_data.get("KAYITMTUL")
+            + poz_data.get("KANATMTUL")
+        ) / qty
         item.update(
             {
                 "item_code": item_code,
@@ -241,14 +250,16 @@ class MLYListProcessor(ExcelProcessorInterface):
                 "valuation_rate": total_price,
                 "has_serial_no": 1,
                 "serial_no_series": f"{item_code}-.#",
+                "custom_quantity": qty,
                 "description": poz_data.get("ACIKLAMA"),
                 "custom_serial": poz_data.get("SERI"),
                 "custom_width": poz_data.get("GENISLIK"),
                 "custom_height": poz_data.get("YUKSEKLIK"),
                 "custom_color": poz_data.get("RENK"),
-                "custom_quantity": poz_data.get("ADET"),
                 "custom_remarks": poz_data.get("NOTLAR"),
                 "custom_poz_id": poz_data.get("PozID"),
+                "custom_total_main_profiles_mtul": total_main_profiles_mtul,
+                "custom_total_glass_m2": poz_data.get("CAMNET") / qty,
             }
         )
 
