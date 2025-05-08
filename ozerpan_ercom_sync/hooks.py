@@ -166,8 +166,6 @@ doc_events = {
         "validate": "ozerpan_ercom_sync.sales_order_hooks.validate.validate",
     },
     "Job Card": {
-        # "before_save": "ozerpan_ercom_sync.job_card_hooks.before_save.before_save",
-        # "before_insert": "ozerpan_ercom_sync.job_card_hooks.before_insert.before_insert",
         "after_insert": "ozerpan_ercom_sync.job_card_hooks.after_insert.after_insert",
         "on_trash": "ozerpan_ercom_sync.job_card_hooks.on_trash.on_trash",
     },
@@ -232,7 +230,7 @@ doc_events = {
 
 override_doctype_dashboards = {
     # "Task": "ozerpan_ercom_sync.task.get_dashboard_data"
-    "Production Plan": "ozerpan_ercom_sync.production_plan_hooks.get_dashboard_data.get_dashboard_data",
+    # "Production Plan": "ozerpan_ercom_sync.production_plan_hooks.get_dashboard_data.get_dashboard_data",
 }
 
 # exempt linked doctypes from being automatically cancelled
