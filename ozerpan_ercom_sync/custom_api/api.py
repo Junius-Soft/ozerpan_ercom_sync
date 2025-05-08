@@ -64,10 +64,11 @@ def revert_latest_barcode_operation(barcode: str, operation: str) -> None:
         BarcodeStatus.PENDING.value,
     )
 
-    for time_log in job_card.time_logs:
-        if not time_log.to_time:
-            frappe.delete_doc("Job Card Time Log", time_log.name)
-    job_card.status = "On Hold"
+    update_job_card_status(
+        job_card=job_card,
+        status="On Hold",
+        reason="Cancelled",
+    )
 
     save_with_retry(job_card)
     print("\n\n-- Revert Barcode Operation -- (End)")
