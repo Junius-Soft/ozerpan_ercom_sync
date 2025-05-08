@@ -70,9 +70,25 @@ def get_tesdetay(barcode: str, operation: str) -> Any:
     if filtered_data:
         min_poz_tesdetay = min(filtered_data, key=lambda x: x.get("poz_no", float("inf")))
         filtered_data = [min_poz_tesdetay]
-    if not filtered_data:
-        raise InvalidBarcodeError(f"No TesDetay found for barcode: {barcode}")
-    return min_poz_tesdetay
+        return min_poz_tesdetay
+    
+    # If no active barcodes found, check for completed ones
+    completed_data = [
+        od
+        for od in organized_data
+        if od.get("operation_states")
+        and any(
+            os["operation"] == operation and os["status"] == "Completed"
+            for os in od.get("operation_states")
+        )
+    ]
+    if completed_data:
+        min_completed_tesdetay = min(completed_data, key=lambda x: x.get("poz_no", float("inf")))
+        min_completed_tesdetay["for_information_only"] = True  # Add flag to indicate this is just for information
+        return min_completed_tesdetay
+    
+    # If no active or completed barcodes found, raise error
+    raise InvalidBarcodeError(f"No TesDetay found for barcode: {barcode}")
 
 
 def update_operation_status(
