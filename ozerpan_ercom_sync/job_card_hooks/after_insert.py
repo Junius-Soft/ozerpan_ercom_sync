@@ -154,7 +154,7 @@ def select_target_glasses(glass_list: List[Dict], quantity: int) -> List[Dict]:
     unique_sanal_adet = sorted(
         list(set(g["sanal_adet"].split("/")[0] for g in sorted_glasses)), key=int
     )
-    target_sanal_adet = unique_sanal_adet[:quantity]
+    target_sanal_adet = unique_sanal_adet[: int(quantity)]
 
     return [
         g for g in sorted_glasses if g["sanal_adet"].split("/")[0] in target_sanal_adet
@@ -264,7 +264,7 @@ def select_target_tesdetay(tesdetay_list: List[Dict], quantity: int) -> List[Dic
         list(set(td["sanal_adet"] for td in sorted_tesdetay)), key=int
     )
 
-    target_sanal_adet = unique_sanal_adet[:quantity]
+    target_sanal_adet = unique_sanal_adet[: int(quantity)]
 
     return [td for td in sorted_tesdetay if td["sanal_adet"] in target_sanal_adet]
 
