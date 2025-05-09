@@ -1,7 +1,8 @@
 from typing import Dict, List
 
-from ozerpan_ercom_sync.job_card_hooks.helpers import get_glass_list, get_tesdetay_list
 from ozerpan_ercom_sync.utils import bulk_insert_child_rows, timer
+
+from .helpers import get_glass_list, get_tesdetay_list
 
 
 @timer
