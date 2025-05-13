@@ -1,3 +1,5 @@
+import os
+from collections import defaultdict
 from typing import Any, Dict, List, Optional, TypedDict
 
 import frappe
@@ -213,13 +215,192 @@ def get_surme_poz_by_order_no():
 
 
 @frappe.whitelist()
+def process_file() -> dict[str, Any]:
+    print("\n\n-- Process File -- (START)")
+    # /home/erp/Masaüstü
+    # /home/erp/Masaüstü/erpupload
+    BASE_DIR = "/files/xls_import"
+    TO_PROCESS = os.path.join(BASE_DIR, "to_process")
+    PROCESSED = os.path.join(BASE_DIR, "processed")
+    FAILED = os.path.join(BASE_DIR, "failed")
+
+    for dir_path in [TO_PROCESS, PROCESSED, FAILED]:
+        if not os.path.exists(dir_path):
+            os.makedirs(dir_path, exist_ok=True)
+
+    FILE_SETS = {
+        "set_a": ["MLY3", "CAMLISTE"],
+        "set_b": ["DST", "OPTGENEL"],
+    }
+
+    def get_order_and_type(filename: str):
+        name = filename.upper().replace(".XLS", "")
+        parts = name.split("_")
+        return parts[0], parts[1]
+
+    grouped = defaultdict(dict)
+    for filename in os.listdir(TO_PROCESS):
+        if filename.upper().endswith(".XLS"):
+            file_path = os.path.join(TO_PROCESS, filename)
+            try:
+                order_no, file_type = get_order_and_type(filename)
+                grouped[order_no][file_type] = {
+                    "filename": filename,
+                    "path": file_path,
+                }
+            except Exception as e:
+                # Move improperly named files to FAILED folder
+                failed_path = os.path.join(FAILED, filename)
+                os.rename(file_path, failed_path)
+                print(f"Error parsing file {filename}: {str(e)}")
+
+    manager = ExcelProcessingManager()
+    processing_results = {
+        "successful_orders": [],
+        "partial_orders": [],
+        "failed_orders": [],
+        "details": {},
+    }
+
+    # Process each order
+    for order_no, files_dict in grouped.items():
+        print(f"\n Processing Order: {order_no}")
+        order_results = {
+            "files_processed": [],
+            "files_failed": [],
+            "file_sets_complete": [],
+        }
+
+        # Process set_a if complete
+        if all(t in files_dict for t in FILE_SETS["set_a"]):
+            set_result = process_file_set(
+                manager,
+                order_no,
+                "set_a",
+                files_dict,
+                FILE_SETS["set_a"],
+                TO_PROCESS,
+                PROCESSED,
+                FAILED,
+            )
+            order_results["files_processed"].extend(set_result["processed"])
+            order_results["files_failed"].extend(set_result["failed"])
+            if not set_result["failed"]:
+                order_results["file_sets_complete"].append("set_a")
+
+        # Process set_b if complete
+        if all(t in files_dict for t in FILE_SETS["set_b"]):
+            set_result = process_file_set(
+                manager,
+                order_no,
+                "set_b",
+                files_dict,
+                FILE_SETS["set_b"],
+                TO_PROCESS,
+                PROCESSED,
+                FAILED,
+            )
+
+            order_results["files_processed"].extend(set_result["processed"])
+            order_results["files_failed"].extend(set_result["failed"])
+            if not set_result["failed"]:
+                order_results["file_sets_complete"].append("set_b")
+
+        # Process any remaining individual files
+        for file_type, file_info in files_dict.items():
+            if not any(file_type in file_set for file_set in FILE_SETS.values()):
+                try:
+                    result = manager.process_file(
+                        file_url=file_info["path"], filename=file_info["filename"]
+                    )
+                    if result["status"] == "success":
+                        order_results["files_processed"].append(file_info["filename"])
+                        os.rename(
+                            file_info["path"],
+                            os.path.join(PROCESSED, file_info["filename"]),
+                        )
+                    else:
+                        order_results["files_failed"].append(file_info["filename"])
+                        os.rename(
+                            file_info["path"],
+                            os.path.join(FAILED, file_info["filename"]),
+                        )
+                except Exception as e:
+                    order_results["files_failed"].append(file_info["filename"])
+                    os.rename(
+                        file_info["path"], os.path.join(FAILED, file_info["filename"])
+                    )
+                    print(f"Error processing file {file_info['filename']}: {str(e)}")
+
+        # Categorize the order based on results
+        if not order_results["files_failed"] and order_results["files_processed"]:
+            processing_results["successful_orders"].append(order_no)
+        elif order_results["files_processed"] and order_results["files_failed"]:
+            processing_results["partial_orders"].append(order_no)
+        else:
+            processing_results["failed_orders"].append(order_no)
+
+        processing_results["details"][order_no] = order_results
+
+    print("\n\n-- Process File -- (END)")
+    return processing_results
+
+
+def process_file_set(
+    manager: ExcelProcessingManager,
+    order_no: str,
+    set_name: str,
+    files_dict: dict[str, any],
+    file_types: list[str],
+    to_process: str,
+    processed: str,
+    failed: str,
+) -> dict[str, any]:
+    """Process a set of files that belong together"""
+    result = {"processed": [], "failed": []}
+
+    # Process each file in the set
+    for file_type in file_types:
+        file_info = files_dict[file_type]
+        try:
+            process_result = manager.process_file(
+                file_url=file_info["path"],
+                filename=file_info["filename"],
+            )
+            if process_result["status"] == "success":
+                result["processed"].append(file_info["filename"])
+                os.rename(
+                    file_info["path"], os.path.join(processed, file_info["filename"])
+                )
+            else:
+                result["failed"].append(file_info["filename"])
+                os.rename(file_info["path"], os.path.join(failed, file_info["filename"]))
+        except Exception as e:
+            result["failed"].append(file_info["filename"])
+            os.rename(file_info["path"], os.path.join(failed, file_info["filename"]))
+            print(
+                f"Error processing file {file_info['filename']} in set {set_name}: {str(e)}"
+            )
+
+    return result
+
+
+@frappe.whitelist()
 def process_excel_file(file_url: str) -> Dict[str, Any]:
+    """
+    Legacy method for single file processing through Frappe's file upload.
+    Now delegates to the batch process method but handles a single file.
+    """
     try:
         if not file_url:
             return _create_error_response("No file URL provided", "Validation")
 
+        file_doc = frappe.get_doc("File", {"file_url": file_url})
+        site_path = frappe.get_site_path()
+        full_path = site_path + file_url
+
         manager = ExcelProcessingManager()
-        result = manager.process_file(file_url)
+        result = manager.process_file(file_url=full_path, filename=file_doc.file_name)
 
         return result
 

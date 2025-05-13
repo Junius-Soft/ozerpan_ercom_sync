@@ -87,6 +87,9 @@ class GlassListProcessor(ExcelProcessorInterface):
                     "ASC File Generation Warning",
                 )
 
+            sales_order.custom_glass_list_uploaded = True
+            sales_order.save(ignore_permissions=True)
+
             return {
                 "status": "success",
                 "message": _("Glass list file processed successfully"),

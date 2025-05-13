@@ -26,17 +26,14 @@ class ExcelProcessingManager:
             processor = processor_class()
             self._processors[processor.get_supported_file_type()] = processor
 
-    def process_file(self, file_url: str) -> Dict[str, Any]:
+    def process_file(self, file_url: str, filename: str = None) -> Dict[str, Any]:
         try:
-            try:
-                print("\n\n\n")
-                file_doc = frappe.get_doc("File", {"file_url": file_url})
-            except frappe.DoesNotExistError:
-                raise ValueError(_("File not found"))
-
-            file_info = ExcelFileInfo.from_filename(file_doc.file_name, file_url)
+            print(f"\n\n-- Processing File: {filename} -- (START)")
+            file_info = ExcelFileInfo.from_filename(filename, file_url)
 
             processor = self._processors.get(file_info.file_type)
+            print(f"Using processor: {processor.__class__.__name__}")
+
             if not processor:
                 raise ValueError(
                     _(f"No processor found for file type: {file_info.file_type}")
@@ -44,26 +41,39 @@ class ExcelProcessingManager:
 
             processor.validate(file_info)
 
-            file_path = frappe.get_site_path() + file_url
-            if not os.path.exists(file_path):
+            if not os.path.exists(file_url):
                 raise ValueError(_("File not found on server"))
 
-            with open(file_path, "rb") as f:
+            with open(file_url, "rb") as f:
                 file_content = f.read()
 
             result = processor.process(file_info, file_content)
 
-            print("\n\n\n")
-            return {
+            result_with_metadata = {
                 "status": "success",
                 "message": _("File processed successfully"),
                 "file_type": file_info.file_type.value,
                 "order_no": file_info.order_no,
+                "filename": filename,
                 **result,
             }
+            print(f"-- Processing File: {filename} -- (END)\n\n")
+            return result_with_metadata
 
         except ValueError as e:
-            return {"status": "error", "message": str(e), "error_type": "validation"}
+            return {
+                "status": "error",
+                "message": str(e),
+                "error_type": "validation",
+                "filename": filename,
+            }
         except Exception as e:
-            frappe.log_error(f"Error processing file: {str(e)}", "Excel Processing Error")
-            return {"status": "error", "message": str(e), "error_type": "system"}
+            frappe.log_error(
+                f"Error processing file {filename}: {str(e)}", "Excel Processing Error"
+            )
+            return {
+                "status": "error",
+                "message": str(e),
+                "error_type": "system",
+                "filename": filename,
+            }

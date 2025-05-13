@@ -47,7 +47,6 @@ class MLYListProcessor(ExcelProcessorInterface):
 
             # Get poz data from ERCOM database
             poz_data = self._get_poz_data(file_info.order_no)
-            print("Poz Data:", poz_data[0])
             sync_tes_detay(order_no=file_info.order_no)
 
             # Get and update sales order
@@ -56,9 +55,13 @@ class MLYListProcessor(ExcelProcessorInterface):
 
             processed_sheets = []
             missing_items = []
+            # has_glasses = False
             for idx, sheet in enumerate(sheets):
                 try:
                     result = self._process_sheet(sheet, poz_data[idx], file_info)
+
+                    if result["groups"].get("Camlar", []):
+                        has_glasses = True
 
                     if result.get("status") == "error":
                         missing_items.extend(result.get("missing_items", []))
@@ -78,16 +81,21 @@ class MLYListProcessor(ExcelProcessorInterface):
             if missing_items:
                 frappe.throw(
                     title="Eksik Ürünler Tespit Edildi",
-                    msg="<br>".join(
-                        [
-                            f"• {item.get('type')} - {item.get('stock_code')} (Sipariş: {item.get('order_no')}, Poz: {item.get('poz_no')})"
-                            for item in missing_items
-                        ]
-                    ),
+                    # msg="<br>".join(
+                    #     [
+                    #         f"• {item.get('type')} - {item.get('stock_code')} (Sipariş: {item.get('order_no')}, Poz: {item.get('poz_no')})"
+                    #         for item in missing_items
+                    #     ]
+                    # ),
+                    msg=missing_items,
+                    as_list=1,
                 )
 
             # Update sales order items
             self._update_sales_order_items(sales_order, processed_sheets)
+            sales_order.custom_mly_list_uploaded = True
+            sales_order.custom_has_glass_item = has_glasses
+            sales_order.save(ignore_permissions=True)
 
             print("-- Process End --")
             return {
@@ -233,8 +241,6 @@ class MLYListProcessor(ExcelProcessorInterface):
         else:
             item = frappe.new_doc("Item")
 
-            print("Poz")
-
         qty = poz_data.get("ADET")
         total_main_profiles_mtul = (
             poz_data.get("KASAMTUL")
@@ -272,7 +278,7 @@ class MLYListProcessor(ExcelProcessorInterface):
         qty: float,
         main_profiles: Any,
         df: Any,
-        glass_stock_codes,
+        glass_stock_codes: list,
     ) -> Dict[str, Any]:
         """Create Bill of Materials document"""
         print("-- Create BOM --")
@@ -328,7 +334,7 @@ class MLYListProcessor(ExcelProcessorInterface):
         bom.company = company
         bom.quantity = qty
         bom.rm_cost_as_per = "Price List"
-        bom.buying_price_list = "Standard Selling"
+        bom.buying_price_list = "Standard Buying"
 
         # Process profile groups
         profile_group = []
@@ -451,7 +457,7 @@ class MLYListProcessor(ExcelProcessorInterface):
         bom.company = company
         bom.quantity = for_qty
         bom.rm_cost_as_per = "Price List"
-        bom.buying_price_list = "Standard Selling"
+        bom.buying_price_list = "Standard Buying"
 
         bom_items_table = []
         for item in glass_recipe.cam_mutable_items:
@@ -598,4 +604,4 @@ class MLYListProcessor(ExcelProcessorInterface):
                 items.append(sheet["data"])
 
         sales_order.set("items", items)
-        sales_order.save(ignore_permissions=True)
+        # sales_order.save(ignore_permissions=True)
