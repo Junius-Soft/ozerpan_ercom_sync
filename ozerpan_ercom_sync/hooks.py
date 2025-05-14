@@ -189,23 +189,26 @@ doc_events = {
 # Scheduled Tasks
 # ---------------
 
-# scheduler_events = {
-# 	"all": [
-# 		"ozerpan_ercom_sync.tasks.all"
-# 	],
-# 	"daily": [
-# 		"ozerpan_ercom_sync.tasks.daily"
-# 	],
-# 	"hourly": [
-# 		"ozerpan_ercom_sync.tasks.hourly"
-# 	],
-# 	"weekly": [
-# 		"ozerpan_ercom_sync.tasks.weekly"
-# 	],
-# 	"monthly": [
-# 		"ozerpan_ercom_sync.tasks.monthly"
-# 	],
-# }
+scheduler_events = {
+    "hourly": [
+        "ozerpan_ercom_sync.tasks.process_xls_files.process_xls_files",
+    ]
+    # "all": [
+    # 	"ozerpan_ercom_sync.tasks.all"
+    # ],
+    # "daily": [
+    # 	"ozerpan_ercom_sync.tasks.daily"
+    # ],
+    # "hourly": [
+    # 	"ozerpan_ercom_sync.tasks.hourly"
+    # ],
+    # "weekly": [
+    # 	"ozerpan_ercom_sync.tasks.weekly"
+    # ],
+    # "monthly": [
+    # 	"ozerpan_ercom_sync.tasks.monthly"
+    # ],
+}
 
 # Testing
 # -------

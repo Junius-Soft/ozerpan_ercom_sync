@@ -217,167 +217,63 @@ def get_surme_poz_by_order_no():
 @frappe.whitelist()
 def process_file() -> dict[str, Any]:
     print("\n\n-- Process File -- (START)")
-    print(_("Something"))
-    print(_("Something Went {0}").format("Wrong"))
-    # /home/erp/Masaüstü
-    # /home/erp/Masaüstü/erpupload
-    BASE_DIR = "/files/xls_import"
-    TO_PROCESS = os.path.join(BASE_DIR, "to_process")
-    PROCESSED = os.path.join(BASE_DIR, "processed")
-    FAILED = os.path.join(BASE_DIR, "failed")
-
-    for dir_path in [TO_PROCESS, PROCESSED, FAILED]:
-        if not os.path.exists(dir_path):
-            os.makedirs(dir_path, exist_ok=True)
-
-    FILE_SETS = {
-        "set_a": ["MLY3", "CAMLISTE"],
-        "set_b": ["OPTGENEL", "DST"],
-    }
-
-    def get_order_and_type(filename: str):
-        name = filename.upper().replace(".XLS", "")
-        parts = name.split("_")
-        return parts[0], parts[1]
-
-    grouped = defaultdict(dict)
-    for filename in os.listdir(TO_PROCESS):
-        if filename.upper().endswith(".XLS"):
-            file_path = os.path.join(TO_PROCESS, filename)
+    
+    # Import utilities here to avoid circular imports
+    from .file_processor.utils.file_processing import (
+        FileProcessingDirectories,
+        group_files_by_order,
+        FileInfo
+    )
+    from .file_processor.utils.file_set_processing import (
+        process_all_file_sets
+    )
+    
+    # Setup directories
+    dirs = FileProcessingDirectories()
+    dirs.ensure_directories_exist()
+    
+    # Group files by order
+    grouped_files = group_files_by_order(dirs.to_process)
+    
+    # For failed files that couldn't be parsed
+    for filename in os.listdir(dirs.to_process):
+        # Create a list of all filenames from grouped_files
+        processed_filenames = [f.filename for f_dict in grouped_files.values() for f in f_dict.values()]
+        
+        if filename.upper().endswith(".XLS") and filename not in processed_filenames:
+            # Move improperly named files to FAILED folder
+            failed_path = os.path.join(dirs.failed, filename)
+            src_path = os.path.join(dirs.to_process, filename)
             try:
-                order_no, file_type = get_order_and_type(filename)
-                grouped[order_no][file_type] = {
-                    "filename": filename,
-                    "path": file_path,
-                }
+                os.rename(src_path, failed_path)
+                print(f"Moved improperly named file {filename} to failed folder")
             except Exception as e:
-                # Move improperly named files to FAILED folder
-                failed_path = os.path.join(FAILED, filename)
-                os.rename(file_path, failed_path)
-                print(f"Error parsing file {filename}: {str(e)}")
-
+                print(f"Error moving file {filename}: {str(e)}")
+    
+    # Initialize the Excel processing manager
     manager = ExcelProcessingManager()
+    
+    # Initialize results
     processing_results = {
         "successful_orders": [],
         "partial_orders": [],
         "failed_orders": [],
         "details": {},
     }
-
+    
     # Process each order
-    for order_no, files_dict in grouped.items():
+    for order_no, files_dict in grouped_files.items():
         print(f"\n Processing Order: {order_no}")
-        order_results = {
-            "files_processed": [],
-            "files_failed": [],
-            "file_sets_complete": [],
-        }
-
-        # Process set_a if complete
-        if all(t in files_dict for t in FILE_SETS["set_a"]):
-            set_result = process_file_set(
-                manager,
-                order_no,
-                "set_a",
-                files_dict,
-                FILE_SETS["set_a"],
-                TO_PROCESS,
-                PROCESSED,
-                FAILED,
-            )
-            order_results["files_processed"].extend(set_result["processed"])
-            order_results["files_failed"].extend(set_result["failed"])
-            if not set_result["failed"]:
-                order_results["file_sets_complete"].append("set_a")
-
-        # Process set_b if complete
-        if all(t in files_dict for t in FILE_SETS["set_b"]):
-            set_result = process_file_set(
-                manager,
-                order_no,
-                "set_b",
-                files_dict,
-                FILE_SETS["set_b"],
-                TO_PROCESS,
-                PROCESSED,
-                FAILED,
-            )
-
-            order_results["files_processed"].extend(set_result["processed"])
-            order_results["files_failed"].extend(set_result["failed"])
-            if not set_result["failed"]:
-                order_results["file_sets_complete"].append("set_b")
-
-        # Process any remaining individual files
-        for file_type, file_info in files_dict.items():
-            if not any(file_type in file_set for file_set in FILE_SETS.values()):
-                try:
-                    result = manager.process_file(
-                        file_url=file_info["path"], filename=file_info["filename"]
-                    )
-                    if result["status"] == "success":
-                        order_results["files_processed"].append(file_info["filename"])
-                        os.rename(
-                            file_info["path"],
-                            os.path.join(PROCESSED, file_info["filename"]),
-                        )
-                    else:
-                        order_results["files_failed"].append(file_info["filename"])
-                        # Create error log with details
-                        error_details = {
-                            "error_type": result.get("error_type", "unknown"),
-                            "order_no": order_no,
-                            "file_type": file_type,
-                            "file_type_name": result.get("file_type", file_type),
-                        }
-
-                        # Add missing items to error details if present
-                        if (
-                            result.get("error_type") == "missing_items"
-                            and "missing_items" in result
-                        ):
-                            error_details["missing_items"] = result["missing_items"]
-                            error_message = _(
-                                "Processing failed due to missing required items"
-                            )
-                        else:
-                            error_message = result.get("message", _("Unknown error"))
-
-                        log_path = create_error_log_file(
-                            file_info["path"],
-                            error_message,
-                            error_details,
-                        )
-
-                        # Move both file and log to failed folder
-                        os.rename(
-                            file_info["path"], os.path.join(FAILED, file_info["filename"])
-                        )
-                        os.rename(
-                            log_path, os.path.join(FAILED, f"{file_info['filename']}.log")
-                        )
-                except Exception as e:
-                    order_results["files_failed"].append(file_info["filename"])
-                    # Create error log with details
-                    error_details = {
-                        "error_type": result.get("error_type", "unknown"),
-                        "order_no": order_no,
-                        "file_type": file_type,
-                        "exception_type": type(e).__name__,
-                        "file_type_name": result.get("file_type", file_type),
-                    }
-                    log_path = create_error_log_file(
-                        file_info["path"], str(e), error_details
-                    )
-
-                    os.rename(
-                        file_info["path"], os.path.join(FAILED, file_info["filename"])
-                    )
-                    os.rename(
-                        log_path, os.path.join(FAILED, f"{file_info['filename']}.log")
-                    )
-                    print(f"Error processing file {file_info['filename']}: {str(e)}")
-
+        
+        # Process the file sets (and any other files) for this order
+        order_results = process_all_file_sets(
+            manager,
+            order_no,
+            files_dict,
+            dirs.processed,
+            dirs.failed
+        )
+        
         # Categorize the order based on results
         if not order_results["files_failed"] and order_results["files_processed"]:
             processing_results["successful_orders"].append(order_no)
@@ -385,9 +281,10 @@ def process_file() -> dict[str, Any]:
             processing_results["partial_orders"].append(order_no)
         else:
             processing_results["failed_orders"].append(order_no)
-
+            
+        # Add detailed results to the processing results
         processing_results["details"][order_no] = order_results
-
+    
     print("\n\n-- Process File -- (END)")
     return processing_results
 
@@ -402,76 +299,43 @@ def process_file_set(
     processed: str,
     failed: str,
 ) -> dict[str, any]:
-    """Process a set of files that belong together"""
-    result = {"processed": [], "failed": [], "missing_items": {}}
-
-    # Process each file in the set
-    for file_type in file_types:
-        file_info = files_dict[file_type]
-        try:
-            process_result = manager.process_file(
-                file_url=file_info["path"],
-                filename=file_info["filename"],
+    """
+    Process a set of files that belong together.
+    
+    This function has been deprecated. Use the new utility modules instead:
+    - from .file_processor.utils.file_set_processing import process_file_set
+    
+    For maintaining backward compatibility, this function remains but delegates to the new implementation.
+    """
+    from .file_processor.utils.file_processing import FileInfo
+    from .file_processor.utils.file_set_processing import process_file_set as new_process_file_set
+    
+    # Convert old format to new format
+    file_info_dict = {}
+    for file_type, file_data in files_dict.items():
+        if file_type in file_types:
+            file_info_dict[file_type] = FileInfo(
+                filename=file_data["filename"],
+                path=file_data["path"],
+                order_no=order_no,
+                file_type=file_type
             )
-            if process_result["status"] == "success":
-                result["processed"].append(file_info["filename"])
-                # Move to processed folder
-                os.rename(
-                    file_info["path"], os.path.join(processed, file_info["filename"])
-                )
-            else:
-                result["failed"].append(file_info["filename"])
-                # Create error log with details
-                error_details = {
-                    "error_type": process_result.get("error_type", "unknown"),
-                    "order_no": order_no,
-                    "file_type": file_type,
-                    "set_name": set_name,
-                    "file_type_name": process_result.get("file_type", file_type),
-                }
-
-                # Add missing items to error details if present
-                if (
-                    process_result.get("error_type") == "missing_items"
-                    and "missing_items" in process_result
-                ):
-                    error_details["missing_items"] = process_result["missing_items"]
-                    error_message = _("Processing failed due to missing required items")
-                else:
-                    error_message = process_result.get("message", _("Unknown error"))
-
-                log_path = create_error_log_file(
-                    file_info["path"],
-                    error_message,
-                    error_details,
-                )
-
-                # Move both file and log to failed folder
-                os.rename(file_info["path"], os.path.join(failed, file_info["filename"]))
-                os.rename(log_path, os.path.join(failed, f"{file_info['filename']}.log"))
-
-        except Exception as e:
-            result["failed"].append(file_info["filename"])
-            # Create error log with exception details
-            error_details = {
-                "error_type": "exception",
-                "order_no": order_no,
-                "file_type": file_type,
-                "exception_type": type(e).__name__,
-                "file_type_name": result.get("file_type", file_type)
-                if "result" in locals()
-                else file_type,
-            }
-            log_path = create_error_log_file(file_info["path"], str(e), error_details)
-
-            # Move both file and log to failed folder
-            os.rename(file_info["path"], os.path.join(failed, file_info["filename"]))
-            os.rename(log_path, os.path.join(failed, f"{file_info['filename']}.log"))
-            print(
-                f"Error processing file {file_info['filename']} in set {set_name}: {str(e)}"
-            )
-
-    return result
+    
+    # Call the new implementation
+    result = new_process_file_set(
+        manager,
+        order_no,
+        file_info_dict,
+        set_name,
+        processed,
+        failed
+    )
+    
+    # Convert new format to old format
+    return {
+        "processed": result["files_processed"],
+        "failed": result["files_failed"]
+    }
 
 
 @frappe.whitelist()
