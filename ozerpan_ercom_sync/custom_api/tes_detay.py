@@ -7,7 +7,6 @@ from ozerpan_ercom_sync.custom_api.utils import (
     show_progress,
 )
 from ozerpan_ercom_sync.db_pool import DatabaseConnectionPool
-from ozerpan_ercom_sync.utils import timer
 
 
 @frappe.whitelist()
@@ -141,7 +140,6 @@ def sync_tes_detay(order_no=None):
         logger.info("Connection pool is closed.")
 
 
-@timer
 def get_tesdetay_data(pool, order_no=None):
     print("\n\n\n---Get Tesdetay Data---")
 

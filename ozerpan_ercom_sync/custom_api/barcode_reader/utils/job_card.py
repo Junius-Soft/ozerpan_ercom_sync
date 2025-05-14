@@ -3,10 +3,7 @@ from typing import Any, Optional
 import frappe
 from frappe.exceptions import TimestampMismatchError
 
-from ozerpan_ercom_sync.utils import timer
 
-
-@timer
 def complete_job(job_card: Any, qty: int) -> None:
     try:
         job_card.reload()
@@ -21,7 +18,6 @@ def complete_job(job_card: Any, qty: int) -> None:
         raise
 
 
-@timer
 def update_job_card_status(
     job_card: Any,
     status: str,
@@ -51,7 +47,6 @@ def update_job_card_status(
     save_with_retry(job_card)
 
 
-@timer
 def submit_job_card(job_card: Any) -> None:
     try:
         update_job_card_status(job_card, "Completed")
@@ -60,13 +55,11 @@ def submit_job_card(job_card: Any) -> None:
         frappe.log_error(f"Error submitting job card {job_card.name}: {str(e)}")
 
 
-@timer
 def is_job_fully_complete(job_card: Any) -> bool:
     total_completed = sum(log.completed_qty or 0 for log in job_card.time_logs)
     return total_completed >= job_card.for_quantity
 
 
-@timer
 def get_job_card(operation: str, production_item: str, barcode: str) -> Any:
     # First get all active job cards matching the basic criteria
     active_job_cards = frappe.get_all(
@@ -122,7 +115,6 @@ def get_job_card(operation: str, production_item: str, barcode: str) -> Any:
 # When multiple users attempt to modify and save the same document simultaneously,
 # a race condition can occur, causing data inconsistency. This retry mechanism
 # helps prevent such issues by reloading and retrying the save on timestamp conflicts.
-@timer
 def save_with_retry(doc, max_retries=3):
     for attempt in range(max_retries):
         try:
@@ -133,7 +125,6 @@ def save_with_retry(doc, max_retries=3):
             doc.reload()
 
 
-@timer
 def format_job_card_response(job_card_doc):
     """Format a Frappe Job Card document into a specific response structure."""
     required_job_card_fields = [

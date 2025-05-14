@@ -1,6 +1,6 @@
 import os
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, TypedDict
+from typing import Any, Dict, List, Optional, TextIO, TypedDict
 
 import frappe
 from frappe import _
@@ -217,6 +217,8 @@ def get_surme_poz_by_order_no():
 @frappe.whitelist()
 def process_file() -> dict[str, Any]:
     print("\n\n-- Process File -- (START)")
+    print(_("Something"))
+    print(_("Something Went {0}").format("Wrong"))
     # /home/erp/Masaüstü
     # /home/erp/Masaüstü/erpupload
     BASE_DIR = "/files/xls_import"
@@ -230,7 +232,7 @@ def process_file() -> dict[str, Any]:
 
     FILE_SETS = {
         "set_a": ["MLY3", "CAMLISTE"],
-        "set_b": ["DST", "OPTGENEL"],
+        "set_b": ["OPTGENEL", "DST"],
     }
 
     def get_order_and_type(filename: str):
@@ -321,14 +323,58 @@ def process_file() -> dict[str, Any]:
                         )
                     else:
                         order_results["files_failed"].append(file_info["filename"])
-                        os.rename(
+                        # Create error log with details
+                        error_details = {
+                            "error_type": result.get("error_type", "unknown"),
+                            "order_no": order_no,
+                            "file_type": file_type,
+                            "file_type_name": result.get("file_type", file_type),
+                        }
+
+                        # Add missing items to error details if present
+                        if (
+                            result.get("error_type") == "missing_items"
+                            and "missing_items" in result
+                        ):
+                            error_details["missing_items"] = result["missing_items"]
+                            error_message = _(
+                                "Processing failed due to missing required items"
+                            )
+                        else:
+                            error_message = result.get("message", _("Unknown error"))
+
+                        log_path = create_error_log_file(
                             file_info["path"],
-                            os.path.join(FAILED, file_info["filename"]),
+                            error_message,
+                            error_details,
+                        )
+
+                        # Move both file and log to failed folder
+                        os.rename(
+                            file_info["path"], os.path.join(FAILED, file_info["filename"])
+                        )
+                        os.rename(
+                            log_path, os.path.join(FAILED, f"{file_info['filename']}.log")
                         )
                 except Exception as e:
                     order_results["files_failed"].append(file_info["filename"])
+                    # Create error log with details
+                    error_details = {
+                        "error_type": result.get("error_type", "unknown"),
+                        "order_no": order_no,
+                        "file_type": file_type,
+                        "exception_type": type(e).__name__,
+                        "file_type_name": result.get("file_type", file_type),
+                    }
+                    log_path = create_error_log_file(
+                        file_info["path"], str(e), error_details
+                    )
+
                     os.rename(
                         file_info["path"], os.path.join(FAILED, file_info["filename"])
+                    )
+                    os.rename(
+                        log_path, os.path.join(FAILED, f"{file_info['filename']}.log")
                     )
                     print(f"Error processing file {file_info['filename']}: {str(e)}")
 
@@ -357,7 +403,7 @@ def process_file_set(
     failed: str,
 ) -> dict[str, any]:
     """Process a set of files that belong together"""
-    result = {"processed": [], "failed": []}
+    result = {"processed": [], "failed": [], "missing_items": {}}
 
     # Process each file in the set
     for file_type in file_types:
@@ -369,15 +415,58 @@ def process_file_set(
             )
             if process_result["status"] == "success":
                 result["processed"].append(file_info["filename"])
+                # Move to processed folder
                 os.rename(
                     file_info["path"], os.path.join(processed, file_info["filename"])
                 )
             else:
                 result["failed"].append(file_info["filename"])
+                # Create error log with details
+                error_details = {
+                    "error_type": process_result.get("error_type", "unknown"),
+                    "order_no": order_no,
+                    "file_type": file_type,
+                    "set_name": set_name,
+                    "file_type_name": process_result.get("file_type", file_type),
+                }
+
+                # Add missing items to error details if present
+                if (
+                    process_result.get("error_type") == "missing_items"
+                    and "missing_items" in process_result
+                ):
+                    error_details["missing_items"] = process_result["missing_items"]
+                    error_message = _("Processing failed due to missing required items")
+                else:
+                    error_message = process_result.get("message", _("Unknown error"))
+
+                log_path = create_error_log_file(
+                    file_info["path"],
+                    error_message,
+                    error_details,
+                )
+
+                # Move both file and log to failed folder
                 os.rename(file_info["path"], os.path.join(failed, file_info["filename"]))
+                os.rename(log_path, os.path.join(failed, f"{file_info['filename']}.log"))
+
         except Exception as e:
             result["failed"].append(file_info["filename"])
+            # Create error log with exception details
+            error_details = {
+                "error_type": "exception",
+                "order_no": order_no,
+                "file_type": file_type,
+                "exception_type": type(e).__name__,
+                "file_type_name": result.get("file_type", file_type)
+                if "result" in locals()
+                else file_type,
+            }
+            log_path = create_error_log_file(file_info["path"], str(e), error_details)
+
+            # Move both file and log to failed folder
             os.rename(file_info["path"], os.path.join(failed, file_info["filename"]))
+            os.rename(log_path, os.path.join(failed, f"{file_info['filename']}.log"))
             print(
                 f"Error processing file {file_info['filename']} in set {set_name}: {str(e)}"
             )
@@ -499,3 +588,66 @@ def _handle_system_error(error: Exception) -> Dict[str, Any]:
     """Handle general system errors"""
     frappe.log_error(f"Error reading barcode: {str(error)}", "Barcode Reader Error")
     return {"status": "error", "message": str(error), "error_type": "system"}
+
+
+def create_error_log_file(
+    file_path: str, error_message: str, details: Dict = None
+) -> str:
+    """Create a log file with error details for a failed file"""
+    log_file_path = f"{file_path}.log"
+
+    with open(log_file_path, "w") as log_file:
+        _write_line(
+            file=log_file,
+            message=_("Error processing file: {0}").format(os.path.basename(file_path)),
+        )
+        _write_line(
+            file=log_file,
+            message=_("Timestamp: {0}").format(frappe.utils.now()),
+        )
+        _write_line(
+            file=log_file,
+            message=_("Error message: {0}").format(error_message),
+            after=1,
+        )
+
+        if details:
+            _write_line(file=log_file, message=_("Additional details:"))
+            for key, value in details.items():
+                if key == "missing_items":
+                    _write_line(file=log_file, message=_("Missing items:"), before=1)
+                    if isinstance(value, list):
+                        # Handle list of missing item dictionaries
+                        for item in value:
+                            if isinstance(item, dict):
+                                item_type = item.get("type", "Unknown")
+                                stock_code = item.get("stock_code", "Unknown")
+                                order_no = item.get("order_no", "Unknown")
+                                poz_no = item.get("poz_no", "Unknown")
+                                msg = _("- {0} | Order: {1}, Poz: {2}").format(
+                                    stock_code, order_no, poz_no
+                                )
+                                _write_line(file=log_file, message=msg)
+                            else:
+                                _write_line(file=log_file, message=f"- {item}")
+                    elif isinstance(value, dict):
+                        # Handle dictionary of item types to items
+                        for item_type, items in value.items():
+                            _write_line(file=log_file, message=f"- {item_type}")
+                            if isinstance(items, list):
+                                for item in items:
+                                    _write_line(file=log_file, message=f" * {item}")
+                            else:
+                                _write_line(file=log_file, message=f" * {item}")
+                    else:
+                        _write_line(file=log_file, message=f"- {value}")
+                else:
+                    _write_line(file=log_file, message=f"- {key}: {value}")
+
+    return log_file_path
+
+
+def _write_line(file: TextIO, message: str, before: int = 0, after: int = 0):
+    file.write("\n" * before)
+    file.write(message)
+    file.write("\n" * (after + 1))

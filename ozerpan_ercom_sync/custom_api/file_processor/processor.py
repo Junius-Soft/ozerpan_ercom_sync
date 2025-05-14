@@ -49,14 +49,31 @@ class ExcelProcessingManager:
 
             result = processor.process(file_info, file_content)
 
+            missing_items = result.get("missing_items", {})
+
+            if missing_items:
+                result_with_metadata = {
+                    "status": "error",
+                    "message": _("Processing failed due to missing required items"),
+                    "error_type": "missing_items",
+                    "order_no": file_info.order_no,
+                    "filename": filename,
+                    "missing_items": missing_items,
+                }
+                print(f"-- Processing File: {filename} -- Failed (Missing Items) --\n\n")
+                return result_with_metadata
+
             result_with_metadata = {
                 "status": "success",
                 "message": _("File processed successfully"),
                 "file_type": file_info.file_type.value,
                 "order_no": file_info.order_no,
                 "filename": filename,
-                **result,
             }
+
+            for key, value in result.items():
+                if key not in result_with_metadata:
+                    result_with_metadata[key] = value
             print(f"-- Processing File: {filename} -- (END)\n\n")
             return result_with_metadata
 
