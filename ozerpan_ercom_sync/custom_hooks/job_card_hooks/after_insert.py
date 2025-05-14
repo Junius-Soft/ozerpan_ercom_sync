@@ -1,11 +1,10 @@
 from typing import Dict, List
 
-from ozerpan_ercom_sync.utils import bulk_insert_child_rows, timer
+from ozerpan_ercom_sync.utils import bulk_insert_child_rows
 
 from .helpers import get_glass_list, get_tesdetay_list
 
 
-@timer
 def after_insert(doc, method):
     print("\n\n-- Job Card After Insert -- (Start)")
     production_item = doc.production_item

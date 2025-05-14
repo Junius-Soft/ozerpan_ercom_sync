@@ -5,7 +5,6 @@ from frappe import _
 
 from ozerpan_ercom_sync.utils import (
     bulk_update_operation_status,
-    timer,
 )
 
 from ..base import OperationHandler
@@ -22,7 +21,6 @@ from ..utils.job_card import (
 
 
 class KaynakKoseHandler(OperationHandler):
-    @timer
     def get_related_barcodes(
         self, job_card: Any, current_barcode: BarcodeInfo
     ) -> List[BarcodeInfo]:
@@ -65,7 +63,6 @@ class KaynakKoseHandler(OperationHandler):
             ]
         return result
 
-    @timer
     def handle_barcode(
         self,
         barcode: str,
@@ -120,7 +117,6 @@ class KaynakKoseHandler(OperationHandler):
                 job_card, current_barcode, related_barcodes, employee
             )
 
-    @timer
     def _get_uncompleted_job_cards(
         self, barcode: BarcodeInfo, operation: str
     ) -> List[Any]:
@@ -142,7 +138,6 @@ class KaynakKoseHandler(OperationHandler):
 
         return uncompleted_jobs
 
-    @timer
     def _get_other_in_progress_jobs(self, tesdetay_ref: str) -> List[Any]:
         """Get all in-progress job cards for the TesDetay."""
         tesdetay = frappe.get_doc("TesDetay", tesdetay_ref)
@@ -159,7 +154,6 @@ class KaynakKoseHandler(OperationHandler):
 
         return in_progress_jobs
 
-    @timer
     def _complete_other_job_cards(self, job_cards: List[Any]) -> None:
         """Complete other in-progress job cards."""
         for job_card in job_cards:
@@ -177,7 +171,6 @@ class KaynakKoseHandler(OperationHandler):
                 else:
                     update_job_card_status(job_card, "On Hold")
 
-    @timer
     def _handle_in_progress_scan(
         self,
         job_card: Any,
@@ -202,7 +195,6 @@ class KaynakKoseHandler(OperationHandler):
             "completed_barcodes": [b.barcode for b in related_barcodes],
         }
 
-    @timer
     def _handle_pending_scan(
         self,
         job_card: Any,
@@ -225,7 +217,6 @@ class KaynakKoseHandler(OperationHandler):
             "in_progress_barcodes": [b.barcode for b in related_barcodes],
         }
 
-    @timer
     def _get_in_progress_barcodes(self, job_card: Any) -> List[BarcodeInfo]:
         return [
             BarcodeInfo(
@@ -241,7 +232,6 @@ class KaynakKoseHandler(OperationHandler):
             if b.status == BarcodeStatus.IN_PROGRESS.value
         ]
 
-    @timer
     def _is_sanal_adet_group_complete(
         self, job_card: Any, current_barcode: BarcodeInfo
     ) -> bool:
@@ -253,7 +243,6 @@ class KaynakKoseHandler(OperationHandler):
         ]
         return all(b.status == BarcodeStatus.COMPLETED.value for b in related_barcodes)
 
-    @timer
     def _complete_barcode_group(self, job_card: Any, barcodes: List[BarcodeInfo]) -> None:
         tesdetay_refs = [b.tesdetay_ref for b in barcodes]
         job_card_refs = [job_card.name] * len(barcodes)
@@ -265,7 +254,6 @@ class KaynakKoseHandler(OperationHandler):
         )
         save_with_retry(doc=job_card)
 
-    @timer
     def _set_barcodes_in_progress(
         self, job_card: Any, barcodes: List[BarcodeInfo]
     ) -> None:
@@ -278,7 +266,6 @@ class KaynakKoseHandler(OperationHandler):
             BarcodeStatus.IN_PROGRESS.value,
         )
 
-    @timer
     def _get_current_barcode(self, job_card: Any, barcode: str) -> BarcodeInfo:
         b = next((b for b in job_card.custom_barcodes if b.barcode == barcode), None)
         if not b:

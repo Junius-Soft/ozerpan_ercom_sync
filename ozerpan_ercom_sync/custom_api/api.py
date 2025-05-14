@@ -1,4 +1,6 @@
-from typing import Any, Dict, List, Optional, TypedDict
+import os
+from collections import defaultdict
+from typing import Any, Dict, List, Optional, TextIO, TypedDict
 
 import frappe
 from frappe import _
@@ -213,13 +215,145 @@ def get_surme_poz_by_order_no():
 
 
 @frappe.whitelist()
+def process_file() -> dict[str, Any]:
+    print("\n\n-- Process File -- (START)")
+    
+    # Import utilities here to avoid circular imports
+    from .file_processor.utils.file_processing import (
+        FileProcessingDirectories,
+        group_files_by_order,
+        FileInfo
+    )
+    from .file_processor.utils.file_set_processing import (
+        process_all_file_sets
+    )
+    
+    # Setup directories
+    dirs = FileProcessingDirectories()
+    dirs.ensure_directories_exist()
+    
+    # Group files by order
+    grouped_files = group_files_by_order(dirs.to_process)
+    
+    # For failed files that couldn't be parsed
+    for filename in os.listdir(dirs.to_process):
+        # Create a list of all filenames from grouped_files
+        processed_filenames = [f.filename for f_dict in grouped_files.values() for f in f_dict.values()]
+        
+        if filename.upper().endswith(".XLS") and filename not in processed_filenames:
+            # Move improperly named files to FAILED folder
+            failed_path = os.path.join(dirs.failed, filename)
+            src_path = os.path.join(dirs.to_process, filename)
+            try:
+                os.rename(src_path, failed_path)
+                print(f"Moved improperly named file {filename} to failed folder")
+            except Exception as e:
+                print(f"Error moving file {filename}: {str(e)}")
+    
+    # Initialize the Excel processing manager
+    manager = ExcelProcessingManager()
+    
+    # Initialize results
+    processing_results = {
+        "successful_orders": [],
+        "partial_orders": [],
+        "failed_orders": [],
+        "details": {},
+    }
+    
+    # Process each order
+    for order_no, files_dict in grouped_files.items():
+        print(f"\n Processing Order: {order_no}")
+        
+        # Process the file sets (and any other files) for this order
+        order_results = process_all_file_sets(
+            manager,
+            order_no,
+            files_dict,
+            dirs.processed,
+            dirs.failed
+        )
+        
+        # Categorize the order based on results
+        if not order_results["files_failed"] and order_results["files_processed"]:
+            processing_results["successful_orders"].append(order_no)
+        elif order_results["files_processed"] and order_results["files_failed"]:
+            processing_results["partial_orders"].append(order_no)
+        else:
+            processing_results["failed_orders"].append(order_no)
+            
+        # Add detailed results to the processing results
+        processing_results["details"][order_no] = order_results
+    
+    print("\n\n-- Process File -- (END)")
+    return processing_results
+
+
+def process_file_set(
+    manager: ExcelProcessingManager,
+    order_no: str,
+    set_name: str,
+    files_dict: dict[str, any],
+    file_types: list[str],
+    to_process: str,
+    processed: str,
+    failed: str,
+) -> dict[str, any]:
+    """
+    Process a set of files that belong together.
+    
+    This function has been deprecated. Use the new utility modules instead:
+    - from .file_processor.utils.file_set_processing import process_file_set
+    
+    For maintaining backward compatibility, this function remains but delegates to the new implementation.
+    """
+    from .file_processor.utils.file_processing import FileInfo
+    from .file_processor.utils.file_set_processing import process_file_set as new_process_file_set
+    
+    # Convert old format to new format
+    file_info_dict = {}
+    for file_type, file_data in files_dict.items():
+        if file_type in file_types:
+            file_info_dict[file_type] = FileInfo(
+                filename=file_data["filename"],
+                path=file_data["path"],
+                order_no=order_no,
+                file_type=file_type
+            )
+    
+    # Call the new implementation
+    result = new_process_file_set(
+        manager,
+        order_no,
+        file_info_dict,
+        set_name,
+        processed,
+        failed
+    )
+    
+    # Convert new format to old format
+    return {
+        "processed": result["files_processed"],
+        "failed": result["files_failed"]
+    }
+
+
+@frappe.whitelist()
 def process_excel_file(file_url: str) -> Dict[str, Any]:
+    """
+    Legacy method for single file processing through Frappe's file upload.
+    Now delegates to the batch process method but handles a single file.
+    """
     try:
         if not file_url:
             return _create_error_response("No file URL provided", "Validation")
 
+        file_doc = frappe.get_doc("File", {"file_url": file_url})
+        site_path = frappe.get_site_path()
+        full_path = site_path + file_url
+
         manager = ExcelProcessingManager()
-        result = manager.process_file(file_url)
+        result = manager.process_file(file_url=full_path, filename=file_doc.file_name)
 
         return result
 
@@ -318,3 +452,66 @@ def _handle_system_error(error: Exception) -> Dict[str, Any]:
     """Handle general system errors"""
     frappe.log_error(f"Error reading barcode: {str(error)}", "Barcode Reader Error")
     return {"status": "error", "message": str(error), "error_type": "system"}
+
+
+def create_error_log_file(
+    file_path: str, error_message: str, details: Dict = None
+) -> str:
+    """Create a log file with error details for a failed file"""
+    log_file_path = f"{file_path}.log"
+
+    with open(log_file_path, "w") as log_file:
+        _write_line(
+            file=log_file,
+            message=_("Error processing file: {0}").format(os.path.basename(file_path)),
+        )
+        _write_line(
+            file=log_file,
+            message=_("Timestamp: {0}").format(frappe.utils.now()),
+        )
+        _write_line(
+            file=log_file,
+            message=_("Error message: {0}").format(error_message),
+            after=1,
+        )
+
+        if details:
+            _write_line(file=log_file, message=_("Additional details:"))
+            for key, value in details.items():
+                if key == "missing_items":
+                    _write_line(file=log_file, message=_("Missing items:"), before=1)
+                    if isinstance(value, list):
+                        # Handle list of missing item dictionaries
+                        for item in value:
+                            if isinstance(item, dict):
+                                item_type = item.get("type", "Unknown")
+                                stock_code = item.get("stock_code", "Unknown")
+                                order_no = item.get("order_no", "Unknown")
+                                poz_no = item.get("poz_no", "Unknown")
+                                msg = _("- {0} | Order: {1}, Poz: {2}").format(
+                                    stock_code, order_no, poz_no
+                                )
+                                _write_line(file=log_file, message=msg)
+                            else:
+                                _write_line(file=log_file, message=f"- {item}")
+                    elif isinstance(value, dict):
+                        # Handle dictionary of item types to items
+                        for item_type, items in value.items():
+                            _write_line(file=log_file, message=f"- {item_type}")
+                            if isinstance(items, list):
+                                for item in items:
+                                    _write_line(file=log_file, message=f" * {item}")
+                            else:
+                                _write_line(file=log_file, message=f" * {item}")
+                    else:
+                        _write_line(file=log_file, message=f"- {value}")
+                else:
+                    _write_line(file=log_file, message=f"- {key}: {value}")
+
+    return log_file_path
+
+
+def _write_line(file: TextIO, message: str, before: int = 0, after: int = 0):
+    file.write("\n" * before)
+    file.write(message)
+    file.write("\n" * (after + 1))

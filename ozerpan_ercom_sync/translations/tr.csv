@@ -14,7 +14,7 @@ Barcode processed successfully,Barkod başarıyla işlendi
 File not found on server,Dosya sunucuda bulunamadı
 Order number is required,Sipariş numarası gerekli
 No such Sales Order found. Please sync the database before uploading the file,Böyle bir satış siparişi bulunamadı. Lütfen dosyayı yüklemeden önce veritabanını senkronize edin
-Please upload MLY file first,Lütfen önce MLY dosyasını yükleyin
+Please upload MLY file first.,Lütfen önce MLY dosyasını yükleyin.
 Glass list file processed successfully,Cam listesi dosyası başarıyla işlendi
 MLY list file processed successfully,MLY listesi dosyası başarıyla işlendi
 Opt DST table sync,Opt DST tablo senkronizasyonu
@@ -58,3 +58,14 @@ End Customer, Nihai Müşteri
 Total Main Profiles MTUL per piece, Ana Profiller Toplamı MTUL bir adet için
 MTUL per piece, Adet başına MTUL
 m2 per piece, Adet başına m2
+
+Error processing file: {0},Dosya işlenirken hata: {0}
+Error message: {0},Hata mesajı: {0}
+Timestamp: {0},Zaman damgası: {0}
+
+Processing failed due to missing required items,Gerekli öğeler eksik olduğu için işleme başarısız oldu
+Unknown error,Bilinmeyen hata
+Additional details:,Ek ayrıntılar:
+"- {0} | Order: {1}, Poz: {2}","- {0} | Sipariş: {1}, Poz: {2}"
+Missing items:, Eksik öğeler
+This sales order has no glasses.,Bu satış siparişinde cam yok.

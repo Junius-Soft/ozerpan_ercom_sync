@@ -51,8 +51,13 @@ class GlassListProcessor(ExcelProcessorInterface):
         try:
             sheets = self.read_excel_file(file_data)
             sales_order = self._get_sales_order(file_info.order_no)
-            if sales_order.items[0].item_code == "Place Holder Item":
+            if (
+                not sales_order.custom_mly_list_uploaded
+                or not sales_order.custom_has_glass_item
+            ):
                 raise ValueError(_("Please upload MLY file first."))
+            elif not sales_order.custom_has_glass_item:
+                raise ValueError(_("This sales order has no glasses."))
 
             total_processed = 0
             processed_sheets = []
@@ -86,6 +91,9 @@ class GlassListProcessor(ExcelProcessorInterface):
                     f"No ASC files were generated for any sheet in order {file_info.order_no}",
                     "ASC File Generation Warning",
                 )
+
+            sales_order.custom_glass_list_uploaded = True
+            sales_order.save(ignore_permissions=True)
 
             return {
                 "status": "success",

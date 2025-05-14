@@ -1,9 +1,6 @@
+from ozerpan_ercom_sync.utils import bulk_delete_child_rows
 
 
-from ozerpan_ercom_sync.utils import bulk_delete_child_rows, timer
-
-
-@timer
 def on_trash(doc, method) -> None:
     """
     Handle Job Card deletion for both regular and corrective job cards
@@ -14,7 +11,6 @@ def on_trash(doc, method) -> None:
     remove_job_card_link_from_glasslist(doc)
 
 
-@timer
 def remove_job_card_link_from_glasslist(job_card_doc) -> None:
     bulk_delete_child_rows(
         child_table="CamListe Job Card",
@@ -23,7 +19,6 @@ def remove_job_card_link_from_glasslist(job_card_doc) -> None:
     )
 
 
-@timer
 def remove_job_card_link_from_tesdetay(job_card_doc) -> None:
     """
     Remove job card references from TesDetay documents
