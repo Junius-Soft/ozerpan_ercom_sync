@@ -63,9 +63,12 @@ Error processing file: {0},Dosya işlenirken hata: {0}
 Error message: {0},Hata mesajı: {0}
 Timestamp: {0},Zaman damgası: {0}
 
-Processing failed due to missing required items,Gerekli öğeler eksik olduğu için işleme başarısız oldu
 Unknown error,Bilinmeyen hata
 Additional details:,Ek ayrıntılar:
 "- {0} | Order: {1}, Poz: {2}","- {0} | Sipariş: {1}, Poz: {2}"
 Missing items:, Eksik öğeler
-This sales order has no glasses.,Bu satış siparişinde cam yok.
+This sales order has no glasses.,Bu satış siparişinde cam yok
+MLY List Uploaded,MLY Listesi Yüklendi
+Has Glass Item,Cam Ürün Var
+Glass List Uploaded,Cam Listesi Yüklendi
+Processing failed due to missing required items,Gerekli öğeler eksik olduğu için işleme başarısız oldu
