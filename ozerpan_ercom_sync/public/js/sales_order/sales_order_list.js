@@ -5,7 +5,7 @@ frappe.listview_settings["Sales Order"] = {
   onload(listview) {
     console.log("-- ListView Onload --");
     syncErcomDatabase(listview);
-    uploadXLSFile(listview);
+    // uploadXLSFile(listview);
     fileProcessor(listview);
   },
 };
@@ -16,25 +16,33 @@ function syncErcomDatabase(listview) {
 
 function fileProcessor(listview) {
   listview.page.add_inner_button(__("Process File"), () => {
-    let d = new frappe.ui.Dialog({
-      title: __("Select Excel File"),
-      fields: [
-        {
-          label: "File",
-          fieldname: "file",
-          fieldtype: "Attach",
-          reqd: 1,
-        },
-      ],
-      size: "small",
-      primary_action_label: __("Submit"),
-      primary_action(values) {
-        console.log(values);
-        callProcessFileAPI(values);
-        d.hide();
+    frappe.call({
+      method: "ozerpan_ercom_sync.custom_api.api.process_file",
+      callback: function (r) {
+        if (r.message) {
+          frappe.msgprint(r.message);
+        }
       },
     });
-    d.show();
+    //   let d = new frappe.ui.Dialog({
+    //     title: __("Select Excel File"),
+    //     fields: [
+    //       {
+    //         label: "File",
+    //         fieldname: "file",
+    //         fieldtype: "Attach",
+    //         reqd: 1,
+    //       },
+    //     ],
+    //     size: "small",
+    //     primary_action_label: __("Submit"),
+    //     primary_action(values) {
+    //       console.log(values);
+    //       callProcessFileAPI(values);
+    //       d.hide();
+    //     },
+    //   });
+    //   d.show();
   });
 }
 
