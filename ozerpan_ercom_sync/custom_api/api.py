@@ -222,11 +222,16 @@ def process_file() -> dict[str, Any]:
     from .file_processor.utils.file_processing import (
         FileProcessingDirectories,
         group_files_by_order,
-        FileInfo
+        FileInfo,
+        process_file_with_error_handling
     )
     from .file_processor.utils.file_set_processing import (
-        process_all_file_sets
+        identify_file_sets,
+        process_file_set
     )
+    
+    # Reset database connection at the start
+    frappe.db.commit()
     
     # Setup directories
     dirs = FileProcessingDirectories()
@@ -261,31 +266,117 @@ def process_file() -> dict[str, Any]:
         "details": {},
     }
     
-    # Process each order
+    # Process each order independently
     for order_no, files_dict in grouped_files.items():
         print(f"\n Processing Order: {order_no}")
         
-        # Process the file sets (and any other files) for this order
-        order_results = process_all_file_sets(
-            manager,
-            order_no,
-            files_dict,
-            dirs.processed,
-            dirs.failed
-        )
+        # Initialize order results
+        if order_no not in processing_results["details"]:
+            processing_results["details"][order_no] = {
+                "files_processed": [],
+                "files_failed": [],
+                "file_sets_processed": [],
+            }
         
-        # Categorize the order based on results
-        if not order_results["files_failed"] and order_results["files_processed"]:
-            processing_results["successful_orders"].append(order_no)
-        elif order_results["files_processed"] and order_results["files_failed"]:
-            processing_results["partial_orders"].append(order_no)
-        else:
-            processing_results["failed_orders"].append(order_no)
+        try:
+            # Identify which sets are present in the files
+            sets_to_process = identify_file_sets(files_dict)
             
-        # Add detailed results to the processing results
-        processing_results["details"][order_no] = order_results
+            # Process each file set independently
+            for set_name, set_files in sets_to_process.items():
+                try:
+                    print(f"Processing file set {set_name} for order {order_no}")
+                    # Ensure database connection is fresh before processing
+                    frappe.db.commit()
+                    
+                    set_result = process_file_set(
+                        manager,
+                        order_no,
+                        set_files,
+                        set_name,
+                        dirs.processed,
+                        dirs.failed
+                    )
+                    
+                    # Commit changes immediately after successful processing
+                    frappe.db.commit()
+                    
+                    # Update order results with this set's results
+                    processing_results["details"][order_no]["files_processed"].extend(set_result["files_processed"])
+                    processing_results["details"][order_no]["files_failed"].extend(set_result["files_failed"])
+                    
+                    if set_result["files_processed"]:
+                        processing_results["details"][order_no]["file_sets_processed"].append(set_name)
+                        
+                    # Continue processing other sets even if this one had failures
+                except Exception as set_error:
+                    print(f"Error processing file set {set_name} for order {order_no}: {str(set_error)}")
+                    # Continue with other sets even if this one fails
+            
+            # Process any remaining files that don't belong to specific sets
+            processed_file_types = set()
+            for set_files in sets_to_process.values():
+                processed_file_types.update(set_files.keys())
+            
+            remaining_files = {
+                file_type: file_info for file_type, file_info in files_dict.items()
+                if file_type not in processed_file_types
+            }
+            
+            # Process each remaining file independently
+            for file_type, file_info in remaining_files.items():
+                try:
+                    print(f"Processing independent file {file_info.filename} for order {order_no}")
+                    # Ensure database connection is fresh before processing
+                    frappe.db.commit()
+                    
+                    processing_result = process_file_with_error_handling(
+                        manager, 
+                        file_info, 
+                        dirs.processed, 
+                        dirs.failed
+                    )
+                    
+                    # Commit changes immediately after processing
+                    frappe.db.commit()
+                    
+                    if processing_result["processed"]:
+                        processing_results["details"][order_no]["files_processed"].append(file_info.filename)
+                    else:
+                        processing_results["details"][order_no]["files_failed"].append(file_info.filename)
+                    
+                except Exception as file_error:
+                    print(f"Error processing file {file_info.filename}: {str(file_error)}")
+                    processing_results["details"][order_no]["files_failed"].append(file_info.filename)
+                    # Continue with other files even if this one fails
+            
+            # Categorize the order based on final results
+            order_results = processing_results["details"][order_no]
+            if not order_results["files_failed"] and order_results["files_processed"]:
+                if order_no not in processing_results["successful_orders"]:
+                    processing_results["successful_orders"].append(order_no)
+            elif order_results["files_processed"] and order_results["files_failed"]:
+                if order_no not in processing_results["partial_orders"]:
+                    processing_results["partial_orders"].append(order_no)
+            else:
+                if order_no not in processing_results["failed_orders"]:
+                    processing_results["failed_orders"].append(order_no)
+                
+        except Exception as order_error:
+            print(f"Error processing order {order_no}: {str(order_error)}")
+            # Ensure order is categorized even if an exception occurs
+            if processing_results["details"][order_no]["files_processed"]:
+                if order_no not in processing_results["partial_orders"]:
+                    processing_results["partial_orders"].append(order_no)
+            else:
+                if order_no not in processing_results["failed_orders"]:
+                    processing_results["failed_orders"].append(order_no)
     
     print("\n\n-- Process File -- (END)")
+    
+    # Close database connection to avoid connection leaks
+    frappe.db.commit()
+    
     return processing_results
 
 
@@ -341,22 +432,52 @@ def process_file_set(
 @frappe.whitelist()
 def process_excel_file(file_url: str) -> Dict[str, Any]:
     """
-    Legacy method for single file processing through Frappe's file upload.
-    Now delegates to the batch process method but handles a single file.
+    Method for single file processing through Frappe's file upload.
+    Processes the file independently and updates related sales orders immediately.
     """
+    if not file_url:
+        return _create_error_response("No file URL provided", "Validation")
+    
     try:
-        if not file_url:
-            return _create_error_response("No file URL provided", "Validation")
-
+        # Reset database connection at the start
+        frappe.db.commit()
+        
+        # Get file details
         file_doc = frappe.get_doc("File", {"file_url": file_url})
         site_path = frappe.get_site_path()
         full_path = site_path + file_url
-
+        
+        # Log processing start
+        print(f"\n\n-- Processing Single File: {file_doc.file_name} -- (START)")
+        
+        # Process the file
         manager = ExcelProcessingManager()
         result = manager.process_file(file_url=full_path, filename=file_doc.file_name)
-
+        
+        # Log processing completion
+        processing_status = "Success" if result.get("status") == "success" else "Failed"
+        print(f"-- Processing Single File: {file_doc.file_name} -- ({processing_status})")
+        
+        # Move file to appropriate directory based on result
+        if file_doc.is_private and result.get("status") == "success":
+            # Move to processed directory logic could be added here
+            pass
+        
+        # Commit any pending changes and close connection
+        frappe.db.commit()
+        
         return result
-
+        
+    except frappe.DoesNotExistError:
+        error_msg = f"File not found: {file_url}"
+        frappe.log_error(error_msg, "Excel Processing Error")
+        return _create_error_response(error_msg, "NotFound")
+        
+    except (IOError, OSError) as e:
+        error_msg = f"File system error: {str(e)}"
+        frappe.log_error(error_msg, "Excel Processing Error")
+        return _create_error_response(error_msg, "FileSystemError")
+        
     except Exception as e:
         return _handle_file_processing_error(e)
 
@@ -417,14 +538,38 @@ def _handle_operation_error(error: Exception) -> Dict[str, Any]:
 
 
 def _handle_file_processing_error(error: Exception) -> Dict[str, Any]:
-    """Handle errors from file processing"""
+    """Handle errors from file processing with enhanced details"""
+    import traceback
+    error_type = type(error).__name__
+    error_trace = traceback.format_exc()
+    
+    # Close any hanging database connections
+    try:
+        frappe.db.commit()
+    except:
+        pass
+    
+    # Log the detailed error with traceback
     frappe.log_error(
-        f"Error in file processing: {str(error)}", "File Processing API Error"
+        message=f"Error in file processing: {str(error)}\n\nTraceback:\n{error_trace}",
+        title=f"File Processing Error: {error_type}"
     )
+    
+    # Make sure to close the connection even on error
+    try:
+        frappe.db.commit()
+    except:
+        pass
+            
+    # Return a detailed error response with type information
     return {
         "status": "error",
-        "message": _("Unexpected error occurred"),
+        "message": _("Error processing file: {0}").format(str(error)),
         "error_type": "system",
+        "error_details": {
+            "type": error_type,
+            "is_file_error": isinstance(error, (IOError, OSError))
+        }
     }
 
 
@@ -455,31 +600,44 @@ def _handle_system_error(error: Exception) -> Dict[str, Any]:
 
 
 def create_error_log_file(
-    file_path: str, error_message: str, details: Dict = None
+    file_path: str, error_message: str, details: Dict = None, 
+    include_system_info: bool = True
 ) -> str:
-    """Create a log file with error details for a failed file"""
+    """
+    Create a log file with detailed error information for a failed file
+    
+    Args:
+        file_path: Path to the file that failed processing
+        error_message: Main error message describing the failure
+        details: Dictionary of additional error details
+        include_system_info: Whether to include system information in the log
+    
+    Returns:
+        Path to the created log file
+    """
     log_file_path = f"{file_path}.log"
 
     with open(log_file_path, "w") as log_file:
         _write_line(
             file=log_file,
-            message=_("Error processing file: {0}").format(os.path.basename(file_path)),
+            message=_("ERROR REPORT: {0}").format(os.path.basename(file_path)),
+            prefix="!!",
+            timestamp=True,
         )
-        _write_line(
-            file=log_file,
-            message=_("Timestamp: {0}").format(frappe.utils.now()),
-        )
+        
+        # Error information section
         _write_line(
             file=log_file,
             message=_("Error message: {0}").format(error_message),
-            after=1,
+            before=1,
+            prefix="ERROR:",
         )
 
         if details:
-            _write_line(file=log_file, message=_("Additional details:"))
+            _write_line(file=log_file, message=_("Additional details:"), prefix="INFO:", before=1)
             for key, value in details.items():
                 if key == "missing_items":
-                    _write_line(file=log_file, message=_("Missing items:"), before=1)
+                    _write_line(file=log_file, message=_("Missing items:"), before=1, prefix="MISSING:")
                     if isinstance(value, list):
                         # Handle list of missing item dictionaries
                         for item in value:
@@ -491,27 +649,60 @@ def create_error_log_file(
                                 msg = _("- {0} | Order: {1}, Poz: {2}").format(
                                     stock_code, order_no, poz_no
                                 )
-                                _write_line(file=log_file, message=msg)
+                                _write_line(file=log_file, message=msg, prefix="ITEM:", timestamp=False)
                             else:
-                                _write_line(file=log_file, message=f"- {item}")
+                                _write_line(file=log_file, message=f"- {item}", prefix="ITEM:", timestamp=False)
                     elif isinstance(value, dict):
                         # Handle dictionary of item types to items
                         for item_type, items in value.items():
-                            _write_line(file=log_file, message=f"- {item_type}")
+                            _write_line(file=log_file, message=f"- {item_type}", prefix="TYPE:", timestamp=False)
                             if isinstance(items, list):
                                 for item in items:
-                                    _write_line(file=log_file, message=f" * {item}")
+                                    _write_line(file=log_file, message=f" * {item}", prefix="ITEM:", timestamp=False)
                             else:
-                                _write_line(file=log_file, message=f" * {item}")
+                                _write_line(file=log_file, message=f" * {item}", prefix="ITEM:", timestamp=False)
                     else:
-                        _write_line(file=log_file, message=f"- {value}")
+                        _write_line(file=log_file, message=f"- {value}", prefix="DATA:", timestamp=False)
                 else:
-                    _write_line(file=log_file, message=f"- {key}: {value}")
+                    _write_line(file=log_file, message=f"- {key}: {value}", prefix="INFO:", timestamp=False)
+        
+        # Add system information if requested
+        if include_system_info:
+            import platform
+            import socket
+            _write_line(file=log_file, message=_("System Information:"), before=1, prefix="SYS:", timestamp=True)
+            _write_line(file=log_file, message=f"Hostname: {socket.gethostname()}", prefix="SYS:", timestamp=False)
+            _write_line(file=log_file, message=f"Platform: {platform.platform()}", prefix="SYS:", timestamp=False)
+            _write_line(file=log_file, message=f"Python: {platform.python_version()}", prefix="SYS:", timestamp=False)
+            _write_line(file=log_file, message=f"Frappe Version: {frappe.__version__}", prefix="SYS:", timestamp=False)
 
     return log_file_path
 
 
-def _write_line(file: TextIO, message: str, before: int = 0, after: int = 0):
+def _write_line(file: TextIO, message: str, before: int = 0, after: int = 0, prefix: str = "", timestamp: bool = True):
+    """
+    Write a line to the error log file with enhanced formatting.
+    
+    Args:
+        file: The file object to write to
+        message: The message to write
+        before: Number of blank lines to insert before the message
+        after: Number of blank lines to insert after the message
+        prefix: Optional prefix to add to the message (e.g., "ERROR:", "INFO:")
+        timestamp: Whether to include a timestamp
+    """
     file.write("\n" * before)
+    
+    # Add timestamp if requested
+    if timestamp:
+        from datetime import datetime
+        timestamp_str = datetime.now().strftime("[%Y-%m-%d %H:%M:%S] ")
+        file.write(timestamp_str)
+    
+    # Add prefix if provided
+    if prefix:
+        file.write(f"{prefix} ")
+    
+    # Write the actual message
     file.write(message)
     file.write("\n" * (after + 1))

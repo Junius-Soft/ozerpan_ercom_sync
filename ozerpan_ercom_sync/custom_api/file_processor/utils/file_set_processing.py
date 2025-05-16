@@ -2,6 +2,8 @@ import os
 import logging
 from typing import Dict, List, Tuple, Any, Optional
 
+import frappe
+
 from .file_processing import (
     FileInfo, 
     FileSet, 
@@ -74,6 +76,12 @@ def process_file_set(
     Returns:
         Dictionary with processing results
     """
+    # Ensure database connection is fresh
+    try:
+        frappe.db.commit()
+    except Exception as e:
+        logging.warning(f"Database commit warning in process_file_set for {file_set}: {str(e)}")
+    
     result = {
         "files_processed": [],
         "files_failed": [],
@@ -92,6 +100,12 @@ def process_file_set(
         if file_type not in files_dict:
             continue
             
+        # Ensure fresh connection before each file
+        try:
+            frappe.db.commit()
+        except Exception as e:
+            logging.warning(f"Database commit warning before processing {file_type}: {str(e)}")
+            
         file_info = files_dict[file_type]
         processing_result = process_file_with_error_handling(
             manager, 
@@ -104,6 +118,18 @@ def process_file_set(
             result["files_processed"].append(file_info.filename)
         else:
             result["files_failed"].append(file_info.filename)
+        
+        # Commit changes after each file processing
+        try:
+            frappe.db.commit()
+        except Exception as e:
+            logging.warning(f"Database commit warning after processing {file_type}: {str(e)}")
+    
+    # Final commit after all files in the set are processed
+    try:
+        frappe.db.commit()
+    except Exception as e:
+        logging.warning(f"Database commit warning after file set {file_set}: {str(e)}")
     
     return result
 
@@ -156,6 +182,12 @@ def process_all_file_sets(
     Returns:
         Dictionary with processing results
     """
+    # Ensure database connection is fresh at the start
+    try:
+        frappe.db.commit()
+    except Exception as e:
+        logging.warning(f"Database commit warning in process_all_file_sets for order {order_no}: {str(e)}")
+    
     result = {
         "files_processed": [],
         "files_failed": [],
@@ -186,6 +218,12 @@ def process_all_file_sets(
     
     # Process each file set
     for set_name, set_files in sets_to_process.items():
+        # Fresh connection before each set
+        try:
+            frappe.db.commit()
+        except Exception as e:
+            logging.warning(f"Database commit warning before set {set_name}: {str(e)}")
+            
         set_result = process_file_set(
             manager,
             order_no,
@@ -200,6 +238,12 @@ def process_all_file_sets(
         
         if set_result["files_processed"]:
             result["file_sets_processed"].append(set_name)
+            
+        # Commit changes after each set processing
+        try:
+            frappe.db.commit()
+        except Exception as e:
+            logging.warning(f"Database commit warning after set {set_name}: {str(e)}")
     
     # Process any remaining files that don't belong to specific sets
     processed_file_types = set()
@@ -212,6 +256,12 @@ def process_all_file_sets(
     }
     
     for file_type, file_info in remaining_files.items():
+        # Fresh connection before each remaining file
+        try:
+            frappe.db.commit()
+        except Exception as e:
+            logging.warning(f"Database commit warning before remaining file {file_info.filename}: {str(e)}")
+            
         processing_result = process_file_with_error_handling(
             manager, 
             file_info, 
@@ -223,5 +273,17 @@ def process_all_file_sets(
             result["files_processed"].append(file_info.filename)
         else:
             result["files_failed"].append(file_info.filename)
+            
+        # Commit changes after each file processing
+        try:
+            frappe.db.commit()
+        except Exception as e:
+            logging.warning(f"Database commit warning after remaining file {file_info.filename}: {str(e)}")
+    
+    # Final commit after all processing is complete
+    try:
+        frappe.db.commit()
+    except Exception as e:
+        logging.warning(f"Database commit warning at end of process_all_file_sets for order {order_no}: {str(e)}")
     
     return result
