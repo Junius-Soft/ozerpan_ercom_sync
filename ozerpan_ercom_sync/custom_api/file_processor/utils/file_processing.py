@@ -5,7 +5,10 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
+import frappe
 from frappe import _
+
+config = frappe.conf
 
 
 # Constants
@@ -27,11 +30,14 @@ class FileInfo:
 class FileProcessingDirectories:
     """Manages the directories for file processing"""
 
-    def __init__(self, base_dir: str = "/files/xls_import"):
-        self.base_dir = base_dir
-        self.to_process = os.path.join(base_dir, "to_process")
-        self.processed = os.path.join(base_dir, "processed")
-        self.failed = os.path.join(base_dir, "failed")
+    def __init__(self, base_dir: str = None):
+        if base_dir is None:
+            self.base_dir = config["file_upload_base_dir"]
+        else:
+            self.base_dir = base_dir
+        self.to_process = os.path.join(self.base_dir, config["xls_to_process_dir"])
+        self.processed = os.path.join(self.base_dir, config["xls_success_dir"])
+        self.failed = os.path.join(self.base_dir, config["xls_failed_dir"])
 
     def ensure_directories_exist(self) -> None:
         """Ensure all required directories exist"""
