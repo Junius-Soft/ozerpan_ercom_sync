@@ -14,6 +14,7 @@ app_license = "mit"
 fixtures = [
     {"dt": "Custom Field", "filters": [["module", "=", "Ozerpan Ercom Sync"]]},
     {"dt": "Property Setter", "filters": [["module", "=", "Ozerpan Ercom Sync"]]},
+    {"dt": "Workflow"},
     # {"dt": "Item", "filters": [["custom_poz_id", "=", ""], ["custom_serial", "=", ""]]},
     # {"dt": "Item Group"},
     # {"dt": "Workstation"},
@@ -164,6 +165,7 @@ doctype_list_js = {
 doc_events = {
     "Sales Order": {
         "validate": "ozerpan_ercom_sync.custom_hooks.sales_order_hooks.validate.validate",
+        "before_save": "ozerpan_ercom_sync.custom_hooks.sales_order_hooks.before_save.before_save",
     },
     "Job Card": {
         "after_insert": "ozerpan_ercom_sync.custom_hooks.job_card_hooks.after_insert.after_insert",
