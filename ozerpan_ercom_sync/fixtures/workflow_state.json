@@ -1,0 +1,74 @@
+[
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "question-sign",
+  "modified": "2025-03-10 02:15:53.472740",
+  "name": "Pending",
+  "style": "",
+  "workflow_state_name": "Pending"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "ok-sign",
+  "modified": "2025-03-10 02:15:53.473281",
+  "name": "Approved",
+  "style": "Success",
+  "workflow_state_name": "Approved"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "remove",
+  "modified": "2025-03-10 02:15:53.473763",
+  "name": "Rejected",
+  "style": "Danger",
+  "workflow_state_name": "Rejected"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2025-05-16 12:32:07.178642",
+  "name": "İptal Edildi",
+  "style": "",
+  "workflow_state_name": "İptal Edildi"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2025-05-16 12:31:55.663247",
+  "name": "Onaylandı",
+  "style": "",
+  "workflow_state_name": "Onaylandı"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2025-05-16 12:31:33.734496",
+  "name": "Düzenlenecek",
+  "style": "",
+  "workflow_state_name": "Düzenlenecek"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2025-05-16 12:30:26.112882",
+  "name": "Yeni Sipariş",
+  "style": "",
+  "workflow_state_name": "Yeni Sipariş"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Workflow State",
+  "icon": "",
+  "modified": "2025-05-16 12:31:46.904247",
+  "name": "Muhasebe Onay Bekleniyor",
+  "style": "",
+  "workflow_state_name": "Muhasebe Onay Bekleniyor"
+ }
+]
