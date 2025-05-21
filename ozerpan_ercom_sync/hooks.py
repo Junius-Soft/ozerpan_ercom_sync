@@ -193,9 +193,20 @@ doc_events = {
 # ---------------
 
 scheduler_events = {
-    "hourly": [
-        "ozerpan_ercom_sync.tasks.process_xls_files.process_xls_files",
-    ]
+    # "hourly": [
+    #     "ozerpan_ercom_sync.tasks.process_xls_files.process_xls_files",
+    # ],
+    # "cron": {
+    #         "15 18 * * *": [
+    #             "app.scheduled_tasks.delete_all_barcodes_for_users"
+    #         ],
+    #         "*/6 * * * *": [
+    #             "app.scheduled_tasks.collect_error_snapshots"
+    #         ],
+    #         "annual": [
+    #             "app.scheduled_tasks.collect_error_snapshots"
+    #         ]
+    # }
     # "all": [
     # 	"ozerpan_ercom_sync.tasks.all"
     # ],

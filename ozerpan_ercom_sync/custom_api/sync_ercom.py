@@ -184,7 +184,7 @@ def sync_orders(logger):
     try:
         LIMIT: int = 350
         query: str = f"SELECT * FROM dbsiparis ORDER BY SAYAC DESC LIMIT {LIMIT}"
-        query: str = "SELECT * FROM dbsiparis WHERE SIPARISNO = 'S500883'"
+        # query: str = "SELECT * FROM dbsiparis WHERE SIPARISNO = 'S500883'"
         data = db_pool.execute_query(query)
 
         if not data:
