@@ -63,8 +63,8 @@ class MLYListProcessor(ExcelProcessorInterface):
                     if result.get("status") == "error":
                         missing_items.extend(result.get("missing_items", []))
                     else:
-                        # Only check for groups if it's not an error result
-                        if result.get("groups", {}).get("Camlar", []):
+                        # Check if this sheet has glass items
+                        if result.get("has_glass_items"):
                             has_glasses = True
 
                         processed_sheets.append(
@@ -180,23 +180,62 @@ class MLYListProcessor(ExcelProcessorInterface):
                     main_profiles = df
                     break
 
+            # Process glass items separately
             glasses = grouped_dfs.get("Camlar", pd.DataFrame())
             glass_stock_codes = (
                 [code.lstrip("#") for code in glasses["Stok Kodu"].tolist()]
                 if not glasses.empty
                 else []
             )
+            
+            # Check if there are missing glass items
+            missing_glass_items = []
+            for _, row in glasses.iterrows():
+                stock_code = row["Stok Kodu"].lstrip("#")
+                if not frappe.db.exists("Cam Recipe", stock_code):
+                    missing_glass_items.append(
+                        {
+                            "stock_code": stock_code,
+                            "type": "Cam Recipe",
+                            "order_no": item_code.split("-")[0],
+                            "poz_no": item_code.split("-")[1],
+                        }
+                    )
+            
+            if missing_glass_items:
+                return {
+                    "status": "error",
+                    "message": "Missing glass items detected",
+                    "missing_items": missing_glass_items,
+                    "sheet_name": sheet.name,
+                }
+            
+            # Process glass items into separate sales order items
+            glass_items = []
+            for _, row in glasses.iterrows():
+                stock_code = row["Stok Kodu"].lstrip("#")
+                glass_item = self._handle_glass_item(
+                    row=row,
+                    item_name=item.name,
+                    stock_code=stock_code,
+                    for_qty=poz_data.get("ADET"),
+                )
+                glass_items.append(glass_item)
 
-            all_items_df = pd.concat(
-                [df for group_name, df in grouped_dfs.items() if len(df) > 0]
-            )
+            # Create BOM from remaining items (excluding glass items)
+            # Filter out glass items from all_items_df
+            non_glass_dfs = []
+            for group_name, df in grouped_dfs.items():
+                if group_name != "Camlar" and len(df) > 0:
+                    non_glass_dfs.append(df)
+            
+            all_items_df = pd.concat(non_glass_dfs) if non_glass_dfs else pd.DataFrame()
 
             bom_result = self._create_bom(
                 item.name,
                 poz_data.get("ADET"),
                 main_profiles,
                 all_items_df,
-                glass_stock_codes,
             )
 
             if bom_result.get("status") == "error":
@@ -209,7 +248,8 @@ class MLYListProcessor(ExcelProcessorInterface):
 
             print(f"\n\n-- Processing sheet {sheet.name} -- (END)")
 
-            return {
+            # Prepare the main item result
+            main_item_result = {
                 "item_code": item.item_code,
                 "item_name": item.item_name,
                 "description": item.description,
@@ -224,6 +264,13 @@ class MLYListProcessor(ExcelProcessorInterface):
                     }
                     for group, items in grouped_dfs.items()
                 },
+            }
+            
+            # Return main item and glass items
+            return {
+                "main_item": main_item_result,
+                "glass_items": glass_items,
+                "has_glass_items": len(glass_items) > 0
             }
 
         except Exception as e:
@@ -280,7 +327,6 @@ class MLYListProcessor(ExcelProcessorInterface):
         qty: float,
         main_profiles: Any,
         df: Any,
-        glass_stock_codes: list,
     ) -> Dict[str, Any]:
         """Create Bill of Materials document"""
         print(f"\n-- Creating BOM {item_name} -- (START)")
@@ -301,17 +347,6 @@ class MLYListProcessor(ExcelProcessorInterface):
 
         for _, row in df.iterrows():
             stock_code = row["Stok Kodu"].lstrip("#")
-
-            if stock_code in glass_stock_codes:
-                if not frappe.db.exists("Cam Recipe", stock_code):
-                    missing_items.append(
-                        {
-                            "stock_code": stock_code,
-                            "type": "Cam Recipe",
-                            "order_no": item_name.split("-")[0],
-                            "poz_no": item_name.split("-")[1],
-                        }
-                    )
 
             if not frappe.db.exists("Item", stock_code):
                 missing_items.append(
@@ -352,16 +387,7 @@ class MLYListProcessor(ExcelProcessorInterface):
         accessory_kits_table = []
         for _, row in df.iterrows():
             stock_code = row["Stok Kodu"].lstrip("#")
-            if stock_code in glass_stock_codes:
-                glass_item = self._handle_glass_item(
-                    row=row,
-                    item_name=item_name,
-                    stock_code=stock_code,
-                    for_qty=qty,
-                )
-                items_table.append(glass_item)
-                continue
-
+            
             item = frappe.get_doc("Item", stock_code)
             if not item.custom_kit:
                 items_table.append(self._create_bom_item(row, item))
@@ -604,7 +630,14 @@ class MLYListProcessor(ExcelProcessorInterface):
         items = []
         for sheet in processed_sheets:
             if sheet.get("data"):
-                items.append(sheet["data"])
+                data = sheet["data"]
+                # Add main item
+                if data.get("main_item"):
+                    items.append(data["main_item"])
+                # Add glass items at the same level as main items
+                if data.get("glass_items"):
+                    for glass_item in data["glass_items"]:
+                        items.append(glass_item)
 
         sales_order.set("items", items)
         # sales_order.save(ignore_permissions=True)
