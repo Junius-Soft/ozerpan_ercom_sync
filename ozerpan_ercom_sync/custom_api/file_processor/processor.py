@@ -1,5 +1,5 @@
-import os
 import logging
+import os
 from typing import Any, Dict, List, Type
 
 import frappe
@@ -7,8 +7,7 @@ from frappe import _
 
 # Configure logging for database connection issues
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 
 from .base import ExcelProcessorInterface
@@ -21,11 +20,17 @@ from .models.excel_file_info import ExcelFileInfo
 class ExcelProcessingManager:
     def __init__(self):
         self._processors: Dict[ExcelFileType, ExcelProcessorInterface] = {}
-        # Ensure fresh database connection
+        # Ensure database connection is established but don't commit unnecessarily
         try:
-            frappe.db.commit()
+            # Check connection without committing
+            frappe.db.sql("SELECT 1")
         except Exception as e:
-            logging.warning(f"Database commit warning in ExcelProcessingManager init: {str(e)}")
+            logging.warning(
+                f"Database connection warning in ExcelProcessingManager init: {str(e)}"
+            )
+            # Try to reconnect
+            frappe.db.connect()
+
         self._register_processors()
 
     def _register_processors(self) -> None:
@@ -38,18 +43,20 @@ class ExcelProcessingManager:
             # Create processor for each file type
             processor = processor_class()
             self._processors[processor.get_supported_file_type()] = processor
-            
+
         # Make sure to commit any transactions after registration
         try:
             frappe.db.commit()
         except Exception as e:
-            logging.warning(f"Database commit warning after processor registration: {str(e)}")
+            logging.warning(
+                f"Database commit warning after processor registration: {str(e)}"
+            )
 
     def process_file(self, file_url: str, filename: str = None) -> Dict[str, Any]:
         try:
             # Ensure database connection is fresh before processing
-            frappe.db.commit()
-            
+            frappe.db.begin()
+
             print(f"\n\n-- Processing File: {filename} -- (START)")
             file_info = ExcelFileInfo.from_filename(filename, file_url)
 
@@ -57,6 +64,7 @@ class ExcelProcessingManager:
             print(f"Using processor: {processor.__class__.__name__}")
 
             if not processor:
+                frappe.db.rollback()
                 raise ValueError(
                     _(f"No processor found for file type: {file_info.file_type}")
                 )
@@ -64,6 +72,7 @@ class ExcelProcessingManager:
             processor.validate(file_info)
 
             if not os.path.exists(file_url):
+                frappe.db.rollback()
                 raise ValueError(_("File not found on server"))
 
             with open(file_url, "rb") as f:
@@ -71,13 +80,12 @@ class ExcelProcessingManager:
 
             # Process the file
             result = processor.process(file_info, file_content)
-            
-            # Commit database changes after successful processing
-            frappe.db.commit()
 
             missing_items = result.get("missing_items", {})
 
             if missing_items:
+                # Rollback before returning error
+                frappe.db.rollback()
                 result_with_metadata = {
                     "status": "error",
                     "message": _("Processing failed due to missing required items"),
@@ -87,7 +95,6 @@ class ExcelProcessingManager:
                     "missing_items": missing_items,
                 }
                 print(f"-- Processing File: {filename} -- Failed (Missing Items) --\n\n")
-                frappe.db.commit()  # Commit any pending transactions
                 return result_with_metadata
 
             result_with_metadata = {
@@ -101,42 +108,46 @@ class ExcelProcessingManager:
             for key, value in result.items():
                 if key not in result_with_metadata:
                     result_with_metadata[key] = value
-            print(f"-- Processing File: {filename} -- (END)\n\n")
-            
-            # Final commit before returning
+
+            # Commit only at the end of successful processing
             frappe.db.commit()
+
+            print(f"-- Processing File: {filename} -- (END)\n\n")
             return result_with_metadata
 
         except ValueError as e:
-            # Make sure to commit any pending transactions
-            try:
-                frappe.db.commit()
-            except:
-                pass
-                
+            # Rollback any pending changes
+            frappe.db.rollback()
+
             return {
                 "status": "error",
                 "message": str(e),
                 "error_type": "validation",
                 "filename": filename,
             }
+        except frappe.db.OperationalError as e:
+            # Handle database operational errors specifically
+            frappe.db.rollback()
+
+            frappe.log_error(
+                f"Database error processing file {filename}: {str(e)}",
+                "Excel Processing Database Error",
+            )
+
+            return {
+                "status": "error",
+                "message": f"Database error: {str(e)}. The operation may have partially succeeded.",
+                "error_type": "database",
+                "filename": filename,
+            }
         except Exception as e:
-            # On error, try to rollback first
-            try:
-                frappe.db.rollback()
-            except:
-                pass
-                
+            # On error, rollback
+            frappe.db.rollback()
+
             frappe.log_error(
                 f"Error processing file {filename}: {str(e)}", "Excel Processing Error"
             )
-            
-            # Then commit to release connection
-            try:
-                frappe.db.commit()
-            except:
-                pass
-                
+
             return {
                 "status": "error",
                 "message": str(e),
