@@ -8,16 +8,23 @@ from ..barcode_reader.utils.job_card import format_job_card_response
 
 
 @redis_cache
-def fetch_surme_orders(order_no: str = None) -> Set[str]:
+def fetch_surme_orders(
+    operation_type: str,
+    order_no: str = None,
+) -> Set[str]:
     """Fetch and cache Surme orders."""
-    filters = {"operation": ["like", "%Sürme Hazırlık%"]}
+    if not operation_type:
+        frappe.throw(_("Operation Type is required."))
+        return
+
+    filters = {"operation": ["like", f"%{operation_type}%"]}
     if order_no:
-        filters["production_item"] = ["like", f"%{order_no}"]
+        filters["production_item"] = ["like", f"%{order_no}%"]
 
     job_cards = frappe.get_list(
         doctype="Job Card",
         filters=filters,
-        fields=["production_item"],
+        fields=["production_item", "name"],
         page_length=20,
     )
 
@@ -90,8 +97,16 @@ def get_glasses(order_no: str, poz_no: str) -> List[Dict]:
     )
 
 
-def fetch_surme_poz_details(order_no: str) -> Dict[str, Any]:
+def fetch_surme_poz_details(
+    operation_type: str,
+    order_no: str,
+) -> Dict[str, Any]:
     """Fetch Surme position details."""
+
+    if not operation_type:
+        frappe.throw(_("Operation Type is required."))
+        return
+
     if not order_no:
         frappe.throw(_("Order number must be provided"))
 
@@ -100,14 +115,17 @@ def fetch_surme_poz_details(order_no: str) -> Dict[str, Any]:
     job_cards = frappe.get_all(
         doctype="Job Card",
         filters={
-            "operation": ["like", "%Sürme Hazırlık%"],
+            "operation": ["like", f"%{operation_type}%"],
             "production_item": ["like", f"{order_no}%"],
         },
         fields=["name", "production_item", "work_order"],
         page_length=20,
     )
 
+    print("Job Cards:", job_cards)
+
     order_poz_details: Dict[str, Any] = {}
+    job_cards_response: list[dict[str, Any]] = []
 
     for jc in job_cards:
         barcodes = get_custom_barcodes(jc["name"])
@@ -143,10 +161,11 @@ def fetch_surme_poz_details(order_no: str) -> Dict[str, Any]:
         )
 
         order_poz_details[item_code] = poz_detail
+        print("Name:", jc.name)
+        jc_doc = format_job_card_response(frappe.get_doc("Job Card", jc.name))
+        job_cards_response.append(jc_doc)
 
     return {
         "order_poz_details": order_poz_details,
-        "job_card": format_job_card_response(
-            frappe.get_doc("Job Card", job_cards[0].name)
-        ),
+        "job_cards": job_cards_response,
     }
