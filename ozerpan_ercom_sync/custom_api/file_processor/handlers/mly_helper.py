@@ -49,7 +49,13 @@ MIDDLE_OPERATIONS = {
             "Sürme Hazırlık",
             "Sürme Bağlama",
         ],
+        "KASA_KAYIT": [
+            "Sürme Hazırlık",
+            "Sürme Bağlama",
+            "Orta Kayıt",
+        ],
         "KASA": [
+            "Kaynak Köşe Temizleme",
             "Sürme Hazırlık",
             "Sürme Bağlama",
         ],
