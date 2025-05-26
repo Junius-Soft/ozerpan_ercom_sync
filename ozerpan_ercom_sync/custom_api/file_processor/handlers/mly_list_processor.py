@@ -183,22 +183,43 @@ class MLYListProcessor(ExcelProcessorInterface):
 
             # Process glass items separately
             glasses = grouped_dfs.get("Camlar", pd.DataFrame())
+            
+            # The file is considered glass-only if it has Camlar group but no Ana Profiller group
             is_glass_only = "Camlar" in grouped_dfs and main_profiles is None
 
             # Log if this is a glass-only file
             if is_glass_only and not glasses.empty:
                 print(f"Processing glass-only MLY file for sheet {sheet.name}")
                 # For glass-only files, we don't create a main item
+                # However, if we later find out all items in the Camlar group are actually profiles,
+                # we'll need to re-evaluate this
                 item = None
             else:
                 # For regular files, create the main item
                 item = self._create_item(item_code, total_price, poz_data)
 
-            # Check if there are missing glass items
+            # Check for profile items mistakenly included in the glass group
+            # and filter out real glass items from profile items
+            profile_items_in_glass = []
+            real_glass_items = []
             missing_glass_items = []
+            
+            print(f"Processing {len(glasses)} items in Camlar group")
+            
             for _, row in glasses.iterrows():
                 stock_code = row["Stok Kodu"].lstrip("#")
-                if not frappe.db.exists("Cam Recipe", stock_code):
+                is_cam_recipe = frappe.db.exists("Cam Recipe", stock_code)
+                is_profile_type = frappe.db.exists("Profile Type", stock_code)
+                
+                if is_cam_recipe:
+                    # This is a real glass item
+                    real_glass_items.append(row)
+                elif is_profile_type:
+                    # This is a profile item mistakenly included in glass group
+                    print(f"Found profile item {stock_code} in Camlar group - will be skipped")
+                    profile_items_in_glass.append(row)
+                else:
+                    # This is a missing glass item
                     missing_glass_items.append(
                         {
                             "stock_code": stock_code,
@@ -207,7 +228,9 @@ class MLYListProcessor(ExcelProcessorInterface):
                             "poz_no": item_code.split("-")[1],
                         }
                     )
-
+            
+            print(f"Found {len(real_glass_items)} real glass items and {len(profile_items_in_glass)} profile items in Camlar group")
+            
             if missing_glass_items:
                 return {
                     "status": "error",
@@ -216,9 +239,9 @@ class MLYListProcessor(ExcelProcessorInterface):
                     "sheet_name": sheet.name,
                 }
 
-            # Process glass items into separate sales order items
+            # Process actual glass items into separate sales order items
             glass_items = []
-            for _, row in glasses.iterrows():
+            for row in real_glass_items:
                 stock_code = row["Stok Kodu"].lstrip("#")
                 # If this is a glass-only file, use the item_code directly instead of item.name
                 base_name = item.name if item else item_code
@@ -230,15 +253,29 @@ class MLYListProcessor(ExcelProcessorInterface):
                 )
                 glass_items.append(glass_item)
 
+            # Check if we should actually treat this as a glass-only file
+            # If no real glass items were found (only profiles in glass group), it's not a glass-only file
+            if is_glass_only and len(real_glass_items) == 0:
+                print(f"Reclassifying sheet {sheet.name}: not a glass-only file (no real glass items found)")
+                is_glass_only = False
+                # Create the main item since we now know it's not a glass-only file
+                item = self._create_item(item_code, total_price, poz_data)
+            
             # Only create BOM if this is not a glass-only file
             bom_result = None
             if not is_glass_only:
                 # Create BOM from remaining items (excluding glass items)
-                # Filter out glass items from all_items_df
+                # Filter out glass items from all_items_df and include any profile items found in the glass group
                 non_glass_dfs = []
                 for group_name, df in grouped_dfs.items():
                     if group_name != "Camlar" and len(df) > 0:
                         non_glass_dfs.append(df)
+                
+                # If we have profile items that were in the glass group, add them to all_items_df
+                if profile_items_in_glass:
+                    print(f"Adding {len(profile_items_in_glass)} profile items from glass group to BOM items")
+                    profile_df = pd.DataFrame(profile_items_in_glass)
+                    non_glass_dfs.append(profile_df)
 
                 all_items_df = pd.concat(non_glass_dfs) if non_glass_dfs else pd.DataFrame()
                 
@@ -258,7 +295,7 @@ class MLYListProcessor(ExcelProcessorInterface):
                         "sheet_name": sheet.name,
                     }
             else:
-                print(f"Skipping main item and BOM creation for glass-only file in sheet {sheet.name}")
+                print(f"Skipping main BOM creation for glass-only file in sheet {sheet.name}")
 
             print(f"\n\n-- Processing sheet {sheet.name} -- (END)")
 
