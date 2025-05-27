@@ -57,18 +57,18 @@
   "docstatus": 0,
   "doctype": "Workflow State",
   "icon": "",
-  "modified": "2025-05-16 12:30:26.112882",
-  "name": "Yeni Sipariş",
+  "modified": "2025-05-16 12:31:46.904247",
+  "name": "Muhasebe Onay Bekleniyor",
   "style": "",
-  "workflow_state_name": "Yeni Sipariş"
+  "workflow_state_name": "Muhasebe Onay Bekleniyor"
  },
  {
   "docstatus": 0,
   "doctype": "Workflow State",
   "icon": "",
-  "modified": "2025-05-16 12:31:46.904247",
-  "name": "Muhasebe Onay Bekleniyor",
+  "modified": "2025-05-16 12:30:26.112882",
+  "name": "Yeni Sipariş",
   "style": "",
-  "workflow_state_name": "Muhasebe Onay Bekleniyor"
+  "workflow_state_name": "Yeni Sipariş"
  }
 ]

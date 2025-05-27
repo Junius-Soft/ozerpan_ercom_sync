@@ -14,8 +14,8 @@ app_license = "mit"
 fixtures = [
     {"dt": "Custom Field", "filters": [["module", "=", "Ozerpan Ercom Sync"]]},
     {"dt": "Property Setter", "filters": [["module", "=", "Ozerpan Ercom Sync"]]},
-    {"dt": "Workflow"},
-    {"dt": "Workflow State"},
+    # {"dt": "Workflow"},
+    # {"dt": "Workflow State"},
     # {"dt": "Item", "filters": [["custom_poz_id", "=", ""], ["custom_serial", "=", ""]]},
     # {"dt": "Item Group"},
     # {"dt": "Workstation"},
