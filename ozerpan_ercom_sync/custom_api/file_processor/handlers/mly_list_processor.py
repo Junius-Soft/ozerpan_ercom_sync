@@ -183,7 +183,7 @@ class MLYListProcessor(ExcelProcessorInterface):
 
             # Process glass items separately
             glasses = grouped_dfs.get("Camlar", pd.DataFrame())
-            
+
             # The file is considered glass-only if it has Camlar group but no Ana Profiller group
             is_glass_only = "Camlar" in grouped_dfs and main_profiles is None
 
@@ -196,27 +196,31 @@ class MLYListProcessor(ExcelProcessorInterface):
                 item = None
             else:
                 # For regular files, create the main item
+                print(1)
                 item = self._create_item(item_code, total_price, poz_data)
+                print(2)
 
             # Check for profile items mistakenly included in the glass group
             # and filter out real glass items from profile items
             profile_items_in_glass = []
             real_glass_items = []
             missing_glass_items = []
-            
+
             print(f"Processing {len(glasses)} items in Camlar group")
-            
+
             for _, row in glasses.iterrows():
                 stock_code = row["Stok Kodu"].lstrip("#")
                 is_cam_recipe = frappe.db.exists("Cam Recipe", stock_code)
                 is_profile_type = frappe.db.exists("Profile Type", stock_code)
-                
+
                 if is_cam_recipe:
                     # This is a real glass item
                     real_glass_items.append(row)
                 elif is_profile_type:
                     # This is a profile item mistakenly included in glass group
-                    print(f"Found profile item {stock_code} in Camlar group - will be skipped")
+                    print(
+                        f"Found profile item {stock_code} in Camlar group - will be skipped"
+                    )
                     profile_items_in_glass.append(row)
                 else:
                     # This is a missing glass item
@@ -228,9 +232,11 @@ class MLYListProcessor(ExcelProcessorInterface):
                             "poz_no": item_code.split("-")[1],
                         }
                     )
-            
-            print(f"Found {len(real_glass_items)} real glass items and {len(profile_items_in_glass)} profile items in Camlar group")
-            
+
+            print(
+                f"Found {len(real_glass_items)} real glass items and {len(profile_items_in_glass)} profile items in Camlar group"
+            )
+
             if missing_glass_items:
                 return {
                     "status": "error",
@@ -256,11 +262,13 @@ class MLYListProcessor(ExcelProcessorInterface):
             # Check if we should actually treat this as a glass-only file
             # If no real glass items were found (only profiles in glass group), it's not a glass-only file
             if is_glass_only and len(real_glass_items) == 0:
-                print(f"Reclassifying sheet {sheet.name}: not a glass-only file (no real glass items found)")
+                print(
+                    f"Reclassifying sheet {sheet.name}: not a glass-only file (no real glass items found)"
+                )
                 is_glass_only = False
                 # Create the main item since we now know it's not a glass-only file
                 item = self._create_item(item_code, total_price, poz_data)
-            
+
             # Only create BOM if this is not a glass-only file
             bom_result = None
             if not is_glass_only:
@@ -270,15 +278,18 @@ class MLYListProcessor(ExcelProcessorInterface):
                 for group_name, df in grouped_dfs.items():
                     if group_name != "Camlar" and len(df) > 0:
                         non_glass_dfs.append(df)
-                
+
                 # If we have profile items that were in the glass group, add them to all_items_df
                 if profile_items_in_glass:
-                    print(f"Adding {len(profile_items_in_glass)} profile items from glass group to BOM items")
+                    print(
+                        f"Adding {len(profile_items_in_glass)} profile items from glass group to BOM items"
+                    )
                     profile_df = pd.DataFrame(profile_items_in_glass)
                     non_glass_dfs.append(profile_df)
 
-                all_items_df = pd.concat(non_glass_dfs) if non_glass_dfs else pd.DataFrame()
-                
+                all_items_df = (
+                    pd.concat(non_glass_dfs) if non_glass_dfs else pd.DataFrame()
+                )
                 # Create BOM for main item
                 bom_result = self._create_bom(
                     item.name,
@@ -295,7 +306,9 @@ class MLYListProcessor(ExcelProcessorInterface):
                         "sheet_name": sheet.name,
                     }
             else:
-                print(f"Skipping main BOM creation for glass-only file in sheet {sheet.name}")
+                print(
+                    f"Skipping main BOM creation for glass-only file in sheet {sheet.name}"
+                )
 
             print(f"\n\n-- Processing sheet {sheet.name} -- (END)")
 
@@ -303,9 +316,9 @@ class MLYListProcessor(ExcelProcessorInterface):
             result = {
                 "glass_items": glass_items,
                 "has_glass_items": len(glass_items) > 0,
-                "is_glass_only": is_glass_only
+                "is_glass_only": is_glass_only,
             }
-            
+
             # Only include main item for non-glass-only files
             if not is_glass_only:
                 main_item_result = {
@@ -319,13 +332,15 @@ class MLYListProcessor(ExcelProcessorInterface):
                     "groups": {
                         group: {
                             "items_count": len(items),
-                            "items": items["Stok Kodu"].tolist() if len(items) > 0 else [],
+                            "items": items["Stok Kodu"].tolist()
+                            if len(items) > 0
+                            else [],
                         }
                         for group, items in grouped_dfs.items()
                     },
                 }
                 result["main_item"] = main_item_result
-                
+
             return result
 
         except Exception as e:
@@ -344,12 +359,20 @@ class MLYListProcessor(ExcelProcessorInterface):
         else:
             item = frappe.new_doc("Item")
 
+        print("Item:", item)
+        print("Default BOM:", item.default_bom)
+
+        # Print all fields of the item
+        # for field in item.meta.fields:
+        #     print(f"Field: {field.fieldname} = {item.get(field.fieldname)}")
+        print(1)
         qty = poz_data.get("ADET")
         total_main_profiles_mtul = (
             poz_data.get("KASAMTUL")
             + poz_data.get("KAYITMTUL")
             + poz_data.get("KANATMTUL")
         ) / qty
+        print(2)
         item.update(
             {
                 "item_code": item_code,
@@ -369,9 +392,11 @@ class MLYListProcessor(ExcelProcessorInterface):
                 "custom_poz_id": poz_data.get("PozID"),
                 "custom_total_main_profiles_mtul": total_main_profiles_mtul,
                 "custom_total_glass_m2": poz_data.get("CAMNET") / qty,
+                "default_bom": None,
             }
         )
 
+        print(3)
         item.save(ignore_permissions=True)
         print(f"-- Creating Item {item_code} -- (END)\n")
         return item
@@ -524,6 +549,7 @@ class MLYListProcessor(ExcelProcessorInterface):
         else:
             glass_item = frappe.new_doc("Item")
 
+        print(1)
         glass_item.update(
             {
                 "item_code": glass_item_name,
@@ -535,11 +561,13 @@ class MLYListProcessor(ExcelProcessorInterface):
                 "custom_quantity": for_qty,
                 "has_serial_no": 1,
                 "serial_no_series": f"{glass_item_name}-.#",
+                "default_bom": None,
             }
         )
 
         glass_item.save(ignore_permissions=True)
 
+        print(3)
         company = frappe.defaults.get_user_default("Company")
         bom = frappe.new_doc("BOM")
         bom.item = glass_item_name
