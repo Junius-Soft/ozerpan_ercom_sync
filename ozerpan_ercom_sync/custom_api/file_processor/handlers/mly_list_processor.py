@@ -196,9 +196,7 @@ class MLYListProcessor(ExcelProcessorInterface):
                 item = None
             else:
                 # For regular files, create the main item
-                print(1)
                 item = self._create_item(item_code, total_price, poz_data)
-                print(2)
 
             # Check for profile items mistakenly included in the glass group
             # and filter out real glass items from profile items
@@ -359,20 +357,12 @@ class MLYListProcessor(ExcelProcessorInterface):
         else:
             item = frappe.new_doc("Item")
 
-        print("Item:", item)
-        print("Default BOM:", item.default_bom)
-
-        # Print all fields of the item
-        # for field in item.meta.fields:
-        #     print(f"Field: {field.fieldname} = {item.get(field.fieldname)}")
-        print(1)
         qty = poz_data.get("ADET")
         total_main_profiles_mtul = (
             poz_data.get("KASAMTUL")
             + poz_data.get("KAYITMTUL")
             + poz_data.get("KANATMTUL")
         ) / qty
-        print(2)
         item.update(
             {
                 "item_code": item_code,
@@ -396,7 +386,6 @@ class MLYListProcessor(ExcelProcessorInterface):
             }
         )
 
-        print(3)
         item.save(ignore_permissions=True)
         print(f"-- Creating Item {item_code} -- (END)\n")
         return item
@@ -549,7 +538,6 @@ class MLYListProcessor(ExcelProcessorInterface):
         else:
             glass_item = frappe.new_doc("Item")
 
-        print(1)
         glass_item.update(
             {
                 "item_code": glass_item_name,
@@ -567,7 +555,6 @@ class MLYListProcessor(ExcelProcessorInterface):
 
         glass_item.save(ignore_permissions=True)
 
-        print(3)
         company = frappe.defaults.get_user_default("Company")
         bom = frappe.new_doc("BOM")
         bom.item = glass_item_name
