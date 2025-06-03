@@ -8,7 +8,7 @@ from frappe import _
 from ozerpan_ercom_sync.custom_api.file_processor.constants import ExcelFileType
 from ozerpan_ercom_sync.custom_api.file_processor.handlers import mly_helper
 from ozerpan_ercom_sync.custom_api.tes_detay import sync_tes_detay
-from ozerpan_ercom_sync.custom_api.utils import get_float_value
+from ozerpan_ercom_sync.custom_api.utils import convert_uom, get_float_value
 from ozerpan_ercom_sync.db_pool import DatabaseConnectionPool
 
 from ..base import ExcelProcessorInterface
@@ -367,7 +367,7 @@ class MLYListProcessor(ExcelProcessorInterface):
             {
                 "item_code": item_code,
                 "item_name": item_code,
-                "item_group": "All Item Groups",
+                "item_group": "PVC",
                 "stock_uom": "Nos",
                 "valuation_rate": total_price,
                 "has_serial_no": 1,
@@ -530,6 +530,7 @@ class MLYListProcessor(ExcelProcessorInterface):
             raise ValueError(f"Cam Recipe not found: {stock_code}")
 
         glass_recipe = frappe.get_doc("Cam Recipe", stock_code)
+        glass_item_doc = frappe.get_doc("Item", stock_code)
 
         glass_item_name = f"{item_name}-{stock_code}"
 
@@ -545,8 +546,9 @@ class MLYListProcessor(ExcelProcessorInterface):
                 "item_group": "Camlar",
                 "stock_uom": "Nos",
                 "descrioption": row.get("Açıklama", ""),
-                "valuation_rate": get_float_value(str(row.get("Toplam Fiyat", "0.0"))),
                 "custom_quantity": for_qty,
+                "custom_glass_m2": get_float_value(row.get("Miktar")),
+                "custom_serial": glass_item_doc.get("custom_serial"),
                 "has_serial_no": 1,
                 "serial_no_series": f"{glass_item_name}-.#",
                 "default_bom": None,
@@ -559,6 +561,7 @@ class MLYListProcessor(ExcelProcessorInterface):
         bom = frappe.new_doc("BOM")
         bom.item = glass_item_name
         bom.company = company
+        bom.uom = convert_uom(row.get("Birim"))
         bom.quantity = for_qty
         bom.rm_cost_as_per = "Price List"
         bom.buying_price_list = "Standard Buying"
@@ -567,7 +570,7 @@ class MLYListProcessor(ExcelProcessorInterface):
         for item in glass_recipe.cam_mutable_items:
             uom = item.get("uom")
             item_qty = item.get("qty", 0.0)
-            glass_qty = get_float_value(row.get("miktar", 1.0))
+            glass_qty = get_float_value(row.get("Miktar", 1))
             qty = item_qty * glass_qty
             bom_items_table.append(
                 {

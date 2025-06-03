@@ -6,3 +6,4 @@ class ExcelFileType(Enum):
     DST = "DST"
     OPT = "OPTGENEL"
     CAM = "CAMLISTE"
+    PRICE = "FIYAT"
