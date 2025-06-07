@@ -168,12 +168,21 @@ class MLYListProcessor(ExcelProcessorInterface):
             item_code = f"{tail['Stok Kodu'].iloc[0]}-{tail['Stok Kodu'].iloc[1]}"
             total_price = tail["Toplam Fiyat"].iloc[0]
 
-            # Create grouped dataframes from groups
+            if "Camlar" in groups and groups["Camlar"]:
+                for glass in groups["Camlar"]:
+                    current_glass_stock_code = glass["Stok Kodu"]
+                    for group in groups:
+                        for item in groups[group][:]:  # Create a copy to iterate over
+                            if (
+                                group != "Camlar"
+                                and item["Stok Kodu"] == current_glass_stock_code
+                            ):
+                                groups[group].remove(item)
+
             grouped_dfs = {
                 group: pd.DataFrame(items) if items else pd.DataFrame()
                 for group, items in groups.items()
             }
-
             # Check if this is a glass-only file before creating the main item
             main_profiles = None
             for key, df in grouped_dfs.items():
