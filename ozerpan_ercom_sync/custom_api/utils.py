@@ -201,3 +201,10 @@ def get_machine_name(machine_no: int) -> str:
     """
     machine_names = {2: "Murat TT", 23: "Murat NR242", 24: "Kaban CNC FA-1030"}
     return machine_names.get(machine_no, "")
+
+
+def convert_uom(uom: str) -> str:
+    if uom == "m²":
+        return "Square Meter"
+
+    return uom

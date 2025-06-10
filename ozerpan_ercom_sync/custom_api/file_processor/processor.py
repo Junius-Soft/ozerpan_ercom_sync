@@ -5,6 +5,10 @@ from typing import Any, Dict, List, Type
 import frappe
 from frappe import _
 
+from ozerpan_ercom_sync.custom_api.file_processor.handlers.price_list_processor import (
+    PriceListProcessor,
+)
+
 # Configure logging for database connection issues
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -37,6 +41,7 @@ class ExcelProcessingManager:
         processors: List[Type[ExcelProcessorInterface]] = [
             MLYListProcessor,
             GlassListProcessor,
+            PriceListProcessor,
         ]
 
         for processor_class in processors:
