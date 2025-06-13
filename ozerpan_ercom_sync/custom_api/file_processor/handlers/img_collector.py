@@ -110,7 +110,7 @@ class ImgCollector:
                         local_file = os.path.join(self.local_path, item)
                         sftp.get(remote_file, local_file)
                         transferred_files.append(item)
-                        # sftp.remove(remote_file)  # delete after transfer
+                        sftp.remove(remote_file)  # delete after transfer
                     else:
                         print(f"Skipping directory/non-file: {item}")
                 except Exception as e:
