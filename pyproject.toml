@@ -1,15 +1,14 @@
 [project]
 name = "ozerpan_ercom_sync"
-authors = [
-    { name = "juniustech", email = "junius@tech.com"}
-]
+authors = [{ name = "juniustech", email = "junius@tech.com" }]
 description = "Ercom DB Sync for Ozerpan"
 requires-python = ">=3.10"
 readme = "README.md"
 dynamic = ["version"]
 dependencies = [
     # "frappe~=15.0.0" # Installed and managed by bench.
-    "pandas"
+    "pandas",
+    "paramiko",
 ]
 
 [build-system]
