@@ -1,4 +1,5 @@
 import os
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, TextIO, TypedDict
 
 import frappe
@@ -13,6 +14,9 @@ from ozerpan_ercom_sync.custom_api.barcode_reader.utils.job_card import (
     update_job_card_status,
 )
 from ozerpan_ercom_sync.custom_api.barcode_reader.utils.tesdetay import get_tesdetay
+from ozerpan_ercom_sync.custom_api.file_processor.handlers.img_collector import (
+    ImgCollector,
+)
 from ozerpan_ercom_sync.utils import bulk_update_operation_status
 
 from .barcode_reader.exceptions import (
@@ -28,6 +32,23 @@ from .services.surme_service import (
     fetch_surme_orders,
     fetch_surme_poz_details,
 )
+
+config = frappe.conf
+
+
+@dataclass
+class SSHConnectionInfo:
+    host: str
+    user: str
+    password: str
+
+
+@frappe.whitelist()
+def collect():
+    print("\n\n-- Collecting Images -- (START)\n")
+    collector = ImgCollector()
+    result = collector.collect()
+    return result
 
 
 @frappe.whitelist()
@@ -398,7 +419,13 @@ def process_file() -> dict[str, Any]:
     # Close database connection to avoid connection leaks
     frappe.db.commit()
 
-    return processing_results
+    img_collector = ImgCollector()
+    img_collector_result = img_collector.collect()
+
+    return {
+        "file_processing_result": processing_results,
+        "img_collector_result": img_collector_result,
+    }
 
 
 def process_file_set(

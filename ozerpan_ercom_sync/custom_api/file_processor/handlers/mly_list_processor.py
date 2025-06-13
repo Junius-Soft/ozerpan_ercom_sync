@@ -607,7 +607,7 @@ class MLYListProcessor(ExcelProcessorInterface):
                 {
                     "operation": "cam",
                     "workstation": "cam kalite kontrol ve etiket",
-                    "time_in_mins": 10,
+                    "time_in_mins": 9,
                 }
             ],
         )
@@ -641,7 +641,7 @@ class MLYListProcessor(ExcelProcessorInterface):
                 {
                     "operation": o.name,
                     "workstation": o.workstation,
-                    "time_in_mins": 10,
+                    "time_in_mins": 9,
                 }
             )
 
