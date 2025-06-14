@@ -10,8 +10,7 @@ from frappe import _
 
 # Configure logging for connection issues
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 
 config = frappe.conf
@@ -72,13 +71,13 @@ def group_files_by_order(directory_path: str) -> Dict[str, Dict[str, FileInfo]]:
     """
     # Import frappe here to avoid circular imports
     import frappe
-    
+
     # Ensure database connection is fresh
     try:
         frappe.db.commit()
     except Exception as e:
         logging.warning(f"Database commit warning in group_files_by_order: {str(e)}")
-    
+
     grouped = {}
 
     for filename in os.listdir(directory_path):
@@ -114,7 +113,7 @@ def move_file(
     Move a file to the destination directory.
     Optionally create an error log file with the given message and details.
     Returns the path to the log file if created.
-    
+
     Note: This function handles file system operations but doesn't affect database state.
     """
     dest_file_path = os.path.join(destination_dir, file_info.filename)
@@ -155,7 +154,7 @@ def move_file(
 def get_file_sets() -> Dict[str, List[str]]:
     """Return the defined file sets"""
     return {
-        FileSet.SET_A.value: ["MLY3", "CAMLISTE"],
+        FileSet.SET_A.value: ["MLY3", "CAMLISTE", "FIYAT"],
         FileSet.SET_B.value: ["OPTGENEL", "DST"],
     }
 
@@ -169,12 +168,14 @@ def process_file_with_error_handling(
     """
     # Ensure database connection is fresh before processing
     import frappe
-    
+
     try:
         frappe.db.commit()
     except Exception as e:
-        logging.error(f"Database connection error before processing {file_info.filename}: {str(e)}")
-    
+        logging.error(
+            f"Database connection error before processing {file_info.filename}: {str(e)}"
+        )
+
     result = {
         "status": "error",
         "processed": False,
@@ -186,25 +187,29 @@ def process_file_with_error_handling(
         processing_result = manager.process_file(
             file_url=file_info.path, filename=file_info.filename
         )
-        
+
         # Commit after successful processing
         try:
             frappe.db.commit()
         except Exception as e:
-            logging.warning(f"Database commit warning after processing {file_info.filename}: {str(e)}")
+            logging.warning(
+                f"Database commit warning after processing {file_info.filename}: {str(e)}"
+            )
 
         if processing_result["status"] == "success":
             # Move to processed directory
             move_file(file_info, processed_dir)
             result["status"] = "success"
             result["processed"] = True
-            
+
             # Final commit for success case
             try:
                 frappe.db.commit()
             except Exception as e:
-                logging.warning(f"Database commit warning after success {file_info.filename}: {str(e)}")
-                
+                logging.warning(
+                    f"Database commit warning after success {file_info.filename}: {str(e)}"
+                )
+
             return result
         else:
             # Processing failed
@@ -238,7 +243,9 @@ def process_file_with_error_handling(
             try:
                 frappe.db.commit()
             except Exception as e:
-                logging.warning(f"Database commit warning after failure {file_info.filename}: {str(e)}")
+                logging.warning(
+                    f"Database commit warning after failure {file_info.filename}: {str(e)}"
+                )
 
             result["error_details"] = error_details
             result["error_message"] = error_message
@@ -252,12 +259,14 @@ def process_file_with_error_handling(
             "file_type": file_info.file_type,
             "exception_type": type(e).__name__,
         }
-        
+
         # Try to recover database connection on error
         try:
             frappe.db.rollback()
         except Exception as db_error:
-            logging.error(f"Database rollback error after exception for {file_info.filename}: {str(db_error)}")
+            logging.error(
+                f"Database rollback error after exception for {file_info.filename}: {str(db_error)}"
+            )
 
         # Move to failed directory and create log
         move_file(
@@ -272,7 +281,9 @@ def process_file_with_error_handling(
         try:
             frappe.db.commit()
         except Exception as db_error:
-            logging.error(f"Database commit error after exception for {file_info.filename}: {str(db_error)}")
+            logging.error(
+                f"Database commit error after exception for {file_info.filename}: {str(db_error)}"
+            )
 
         result["error_details"] = error_details
         result["error_message"] = str(e)

@@ -127,6 +127,7 @@ class ImgCollector:
             return {"status": "success", "files_transferred": transferred_files}
 
         except Exception as e:
+            print(f"Error connecting to {source_host}.")
             return {"status": "error", "message": str(e)}
 
 

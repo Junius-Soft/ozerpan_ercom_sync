@@ -9,16 +9,18 @@ from ozerpan_ercom_sync.custom_api.file_processor.handlers.price_list_processor 
     PriceListProcessor,
 )
 
+from .base import ExcelProcessorInterface
+from .constants import ExcelFileType
+from .handlers.dst_processor import DSTProcessor
+from .handlers.glass_list_processor import GlassListProcessor
+from .handlers.mly_list_processor import MLYListProcessor
+from .handlers.opt_processor import OPTProcessor
+from .models.excel_file_info import ExcelFileInfo
+
 # Configure logging for database connection issues
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
-
-from .base import ExcelProcessorInterface
-from .constants import ExcelFileType
-from .handlers.glass_list_processor import GlassListProcessor
-from .handlers.mly_list_processor import MLYListProcessor
-from .models.excel_file_info import ExcelFileInfo
 
 
 class ExcelProcessingManager:
@@ -42,6 +44,8 @@ class ExcelProcessingManager:
             MLYListProcessor,
             GlassListProcessor,
             PriceListProcessor,
+            DSTProcessor,
+            OPTProcessor,
         ]
 
         for processor_class in processors:
