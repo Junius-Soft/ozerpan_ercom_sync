@@ -1,0 +1,72 @@
+{
+  "actions": [],
+  "allow_rename": 1,
+  "creation": "2025-06-15 19:17:26.110519",
+  "doctype": "DocType",
+  "editable_grid": 1,
+  "engine": "InnoDB",
+  "field_order": [
+    "section_break_iabx",
+    "item_code",
+    "item_name",
+    "amountboy",
+    "amountmt",
+    "amountpcs",
+    "cutoff"
+  ],
+  "fields": [
+    {
+      "fieldname": "section_break_iabx",
+      "fieldtype": "Section Break"
+    },
+    {
+      "fieldname": "item_code",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "label": "Item Code",
+      "options": "Item"
+    },
+    {
+      "fieldname": "item_name",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "Item Name"
+    },
+    {
+      "fieldname": "amountboy",
+      "fieldtype": "Float",
+      "in_list_view": 1,
+      "label": "Amount(Boy)"
+    },
+    {
+      "fieldname": "amountmt",
+      "fieldtype": "Float",
+      "in_list_view": 1,
+      "label": "Amount(Mt)"
+    },
+    {
+      "fieldname": "amountpcs",
+      "fieldtype": "Int",
+      "in_list_view": 1,
+      "label": "Amount(Pcs)"
+    },
+    {
+      "fieldname": "cutoff",
+      "fieldtype": "Float",
+      "in_list_view": 1,
+      "label": "Cut Off"
+    }
+  ],
+  "index_web_pages_for_search": 1,
+  "istable": 1,
+  "links": [],
+  "modified": "2025-06-15 19:17:26.110519",
+  "modified_by": "Administrator",
+  "module": "Ozerpan Ercom Sync",
+  "name": "Super Kesim Profile List",
+  "owner": "Administrator",
+  "permissions": [],
+  "sort_field": "modified",
+  "sort_order": "DESC",
+  "states": []
+}

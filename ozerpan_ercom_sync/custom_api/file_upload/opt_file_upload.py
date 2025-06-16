@@ -47,7 +47,7 @@ def process_opt_file(file: Dict, logger: logging.Logger) -> None:
             raise frappe.ValidationError(f"Machine not found for opt number: {opt_no}")
 
         create_opt_genel_doc(opt_no, opt_code, machine_no, df, logger)
-        create_super_kesim_doc(opt_no, opt_code, machine_no, df, logger)
+        # create_super_kesim_doc(opt_no, opt_code, machine_no, df, logger)
 
     except Exception as e:
         logger.error(f"Error processing OPT file: {str(0)}")
@@ -98,8 +98,6 @@ def create_opt_genel_doc(
                 logger.error(f"Item not found for stock code: {stock_code}")
                 frappe.throw(f"Item not found for stock code: {stock_code}")
 
-
-
             items_data.append(
                 {
                     "item_code": item_code,
@@ -107,6 +105,9 @@ def create_opt_genel_doc(
                     "amountboy": get_float_value(str(row["Adet"])),
                     "amountmt": get_float_value(str(row["Kullanılan"])),
                     "amountpcs": get_float_value(str(row["Parça"])),
+                    "boy": round(
+                        get_float_value(row["Profil"]) / get_float_value(row["Adet"]), 1
+                    ),
                 }
             )
 
@@ -119,6 +120,7 @@ def create_opt_genel_doc(
     except Exception as e:
         logger.error(f"Error creating/updating Opt Genel doc: {str(e)}")
         raise
+
 
 def create_super_kesim_doc(
     opt_no: str, opt_code: str, machine_no: int, df: pd.DataFrame, logger: logging.Logger
@@ -146,8 +148,6 @@ def create_super_kesim_doc(
             if not item_code:
                 logger.error(f"Item not found for stock code: {stock_code}")
                 frappe.throw(f"Item not found for stock code: {stock_code}")
-
-
 
             items_data.append(
                 {
