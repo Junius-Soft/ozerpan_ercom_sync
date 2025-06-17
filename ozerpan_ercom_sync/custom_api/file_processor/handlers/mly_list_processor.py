@@ -390,6 +390,7 @@ class MLYListProcessor(ExcelProcessorInterface):
                 "custom_remarks": poz_data.get("NOTLAR"),
                 "custom_poz_id": poz_data.get("PozID"),
                 "custom_total_main_profiles_mtul": total_main_profiles_mtul,
+                "custom_amount_per_piece": total_main_profiles_mtul,
                 "custom_total_glass_m2": poz_data.get("CAMNET") / qty,
                 "default_bom": None,
             }
@@ -557,6 +558,7 @@ class MLYListProcessor(ExcelProcessorInterface):
                 "descrioption": row.get("Açıklama", ""),
                 "custom_quantity": for_qty,
                 "custom_glass_m2": get_float_value(row.get("Miktar")),
+                "custom_amount_per_piece": get_float_value(row.get("Miktar")),
                 "custom_serial": glass_item_doc.get("custom_serial"),
                 "has_serial_no": 1,
                 "serial_no_series": f"{glass_item_name}-.#",
