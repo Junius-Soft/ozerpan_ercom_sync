@@ -173,7 +173,7 @@ doc_events = {
         "on_trash": "ozerpan_ercom_sync.custom_hooks.job_card_hooks.on_trash.on_trash",
     },
     "Production Plan": {
-        "on_update": "ozerpan_ercom_sync.custom_hooks.production_plan_hooks.on_update.on_update"
+        "on_update": "ozerpan_ercom_sync.custom_hooks.production_plan_hooks.on_update.on_update",
     },
     # "DocType":{
     #     "before_insert": "", # Before a new document is inserted into the DB
@@ -243,10 +243,10 @@ scheduler_events = {
 # generated from the base implementation of the doctype dashboard,
 # along with any modifications made in other Frappe apps
 
-override_doctype_dashboards = {
-    # "Task": "ozerpan_ercom_sync.task.get_dashboard_data"
-    # "Production Plan": "ozerpan_ercom_sync.production_plan_hooks.get_dashboard_data.get_dashboard_data",
-}
+# override_doctype_dashboards = {
+#     # "Task": "ozerpan_ercom_sync.task.get_dashboard_data"
+#     # "Production Plan": "ozerpan_ercom_sync.production_plan_hooks.get_dashboard_data.get_dashboard_data",
+# }
 
 # exempt linked doctypes from being automatically cancelled
 #
