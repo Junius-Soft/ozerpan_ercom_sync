@@ -7,7 +7,6 @@ from frappe import _
 
 from ozerpan_ercom_sync.custom_api.file_processor.constants import ExcelFileType
 from ozerpan_ercom_sync.custom_api.file_processor.handlers import mly_helper
-from ozerpan_ercom_sync.custom_api.tes_detay import sync_tes_detay
 from ozerpan_ercom_sync.custom_api.utils import convert_uom, get_float_value
 from ozerpan_ercom_sync.db_pool import DatabaseConnectionPool
 
@@ -47,7 +46,6 @@ class MLYListProcessor(ExcelProcessorInterface):
 
             # Get poz data from ERCOM database
             poz_data = self._get_poz_data(file_info.order_no)
-            sync_tes_detay(order_no=file_info.order_no)
 
             # Get and update sales order
             sales_order = self._get_sales_order(file_info.order_no)

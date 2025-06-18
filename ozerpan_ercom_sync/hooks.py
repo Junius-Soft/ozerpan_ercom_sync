@@ -174,6 +174,7 @@ doc_events = {
     },
     "Production Plan": {
         "on_update": "ozerpan_ercom_sync.custom_hooks.production_plan_hooks.on_update.on_update",
+        "on_submit": "ozerpan_ercom_sync.custom_hooks.production_plan_hooks.on_submit.on_submit",
     },
     # "DocType":{
     #     "before_insert": "", # Before a new document is inserted into the DB
