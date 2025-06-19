@@ -332,6 +332,7 @@ class GlassListProcessor(ExcelProcessorInterface):
             # Safely get values with defaults
             cari_unvan = self._safe_get_text(record, "CARIUNVAN")
             siparis_no = self._safe_get_text(record, "SIPARISNO")
+            formatted_cari_unvan = self._turkishToEnglish(cari_unvan).replace(" ", "")
 
             # Handle potential errors in converting values
             try:
@@ -362,7 +363,7 @@ class GlassListProcessor(ExcelProcessorInterface):
             # Format the line with validated values
             return "{:<15}{:>20}{:>30}{:>8}{:>15}{:>9}{:>8}{:>72}\n".format(
                 f"0{glass_doc.serial}\\0{glass_doc.type}",
-                f"{idx}{cari_unvan[:6]}/{siparis_no[-4:] if len(siparis_no) >= 4 else siparis_no} {poz_no:02d}",
+                f"{idx}{formatted_cari_unvan[:6]}/{siparis_no[-4:] if len(siparis_no) >= 4 else siparis_no} {poz_no:02d}",
                 "0Y",
                 adet,
                 gen,
