@@ -11,7 +11,7 @@ frappe.listview_settings["Production Plan"] = {
 function fileProcessor(listview) {
   listview.page.add_inner_button(__("Process File"), () => {
     frappe.call({
-      method: "ozerpan_ercom_sync.custom_api.api.process_file",
+      method: "ozerpan_ercom_sync.custom_api.api.process_file_background_job",
       callback: function (r) {
         if (r.message) {
           frappe.msgprint(r.message);

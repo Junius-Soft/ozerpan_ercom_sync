@@ -44,6 +44,11 @@ class SSHConnectionInfo:
 
 
 @frappe.whitelist()
+def process_file_background_job():
+    frappe.enqueue("ozerpan_ercom_sync.custom_api.api.process_file", queue="long")
+
+
+@frappe.whitelist()
 def collect():
     print("\n\n-- Collecting Images -- (START)\n")
     collector = ImgCollector()
