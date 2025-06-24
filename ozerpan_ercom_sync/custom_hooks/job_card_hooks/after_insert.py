@@ -20,6 +20,9 @@ def after_insert(doc, method):
 
     if doc.operation == "Cam":
         glass_stock_code = parts[2]
+        if glass_stock_code.endswith(("1", "2", "3")):
+            glass_stock_code = glass_stock_code[:-1] + "0"
+
         if doc.is_corrective_job_card:
             insert_corrective_job_card_to_glass_list(
                 doc=doc,
