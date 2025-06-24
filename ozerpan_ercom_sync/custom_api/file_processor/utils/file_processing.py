@@ -19,6 +19,88 @@ config = frappe.conf
 MAX_DB_RETRIES = 3
 
 
+def _reset_db_connection_with_retry(max_retries: int = 3, retry_delay: float = 1.0):
+    """Reset database connection with retry mechanism for lock timeout issues"""
+    import time
+
+    for attempt in range(max_retries):
+        try:
+            # Close any existing connections
+            frappe.db.close()
+            # Reconnect with fresh connection
+            frappe.connect()
+            frappe.db.commit()
+            return
+        except Exception as e:
+            error_msg = str(e).lower()
+            if "lock wait timeout" in error_msg or "deadlock" in error_msg:
+                if attempt < max_retries - 1:
+                    print(
+                        f"Database lock detected, retrying in {retry_delay}s... (attempt {attempt + 1}/{max_retries})"
+                    )
+                    time.sleep(retry_delay)
+                    retry_delay *= 2  # Exponential backoff
+                    continue
+                else:
+                    print(
+                        f"Failed to reset database connection after {max_retries} attempts: {str(e)}"
+                    )
+                    raise
+            else:
+                print(f"Database connection reset failed: {str(e)}")
+                raise
+
+
+def _commit_with_retry(max_retries: int = 3, retry_delay: float = 1.0):
+    """Commit database transaction with retry mechanism for lock timeout issues"""
+    import time
+
+    for attempt in range(max_retries):
+        try:
+            frappe.db.commit()
+            return
+        except Exception as e:
+            error_msg = str(e).lower()
+            if "lock wait timeout" in error_msg or "deadlock" in error_msg:
+                if attempt < max_retries - 1:
+                    print(
+                        f"Database lock detected during commit, retrying in {retry_delay}s... (attempt {attempt + 1}/{max_retries})"
+                    )
+                    try:
+                        frappe.db.rollback()
+                    except:
+                        pass
+                    time.sleep(retry_delay)
+                    retry_delay *= 2  # Exponential backoff
+                    continue
+                else:
+                    print(f"Failed to commit after {max_retries} attempts: {str(e)}")
+                    try:
+                        frappe.db.rollback()
+                    except:
+                        pass
+                    raise
+            else:
+                print(f"Database commit failed: {str(e)}")
+                raise
+
+
+def _handle_database_lock_error(error: Exception, context: str = "") -> bool:
+    """Check if error is a database lock issue and handle appropriately"""
+    error_msg = str(error).lower()
+    if any(
+        keyword in error_msg
+        for keyword in ["lock wait timeout", "deadlock", "try restarting transaction"]
+    ):
+        print(f"Database lock detected in {context}: {str(error)}")
+        try:
+            frappe.db.rollback()
+        except:
+            pass
+        return True
+    return False
+
+
 # Constants
 class FileSet(Enum):
     SET_A = "set_a"
@@ -70,11 +152,10 @@ def group_files_by_order(directory_path: str) -> Dict[str, Dict[str, FileInfo]]:
     with file types as keys and file info as values.
     """
     # Import frappe here to avoid circular imports
-    import frappe
 
     # Ensure database connection is fresh
     try:
-        frappe.db.commit()
+        _commit_with_retry()
     except Exception as e:
         logging.warning(f"Database commit warning in group_files_by_order: {str(e)}")
 
@@ -170,7 +251,7 @@ def process_file_with_error_handling(
     import frappe
 
     try:
-        frappe.db.commit()
+        _reset_db_connection_with_retry()
     except Exception as e:
         logging.error(
             f"Database connection error before processing {file_info.filename}: {str(e)}"
@@ -190,7 +271,7 @@ def process_file_with_error_handling(
 
         # Commit after successful processing
         try:
-            frappe.db.commit()
+            _commit_with_retry()
         except Exception as e:
             logging.warning(
                 f"Database commit warning after processing {file_info.filename}: {str(e)}"
@@ -204,7 +285,7 @@ def process_file_with_error_handling(
 
             # Final commit for success case
             try:
-                frappe.db.commit()
+                _commit_with_retry()
             except Exception as e:
                 logging.warning(
                     f"Database commit warning after success {file_info.filename}: {str(e)}"
@@ -241,7 +322,7 @@ def process_file_with_error_handling(
 
             # Commit after failure case is handled
             try:
-                frappe.db.commit()
+                _commit_with_retry()
             except Exception as e:
                 logging.warning(
                     f"Database commit warning after failure {file_info.filename}: {str(e)}"
@@ -261,12 +342,14 @@ def process_file_with_error_handling(
         }
 
         # Try to recover database connection on error
-        try:
-            frappe.db.rollback()
-        except Exception as db_error:
-            logging.error(
-                f"Database rollback error after exception for {file_info.filename}: {str(db_error)}"
-            )
+        is_lock_error = _handle_database_lock_error(e, f"processing {file_info.filename}")
+        if not is_lock_error:
+            try:
+                frappe.db.rollback()
+            except Exception as db_error:
+                logging.error(
+                    f"Database rollback error after exception for {file_info.filename}: {str(db_error)}"
+                )
 
         # Move to failed directory and create log
         move_file(
@@ -279,7 +362,10 @@ def process_file_with_error_handling(
 
         # Final commit for exception case
         try:
-            frappe.db.commit()
+            if is_lock_error:
+                _commit_with_retry()
+            else:
+                frappe.db.commit()
         except Exception as db_error:
             logging.error(
                 f"Database commit error after exception for {file_info.filename}: {str(db_error)}"

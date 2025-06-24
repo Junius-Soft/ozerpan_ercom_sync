@@ -44,6 +44,11 @@ class SSHConnectionInfo:
 
 
 @frappe.whitelist()
+def process_file_background_job():
+    frappe.enqueue("ozerpan_ercom_sync.custom_api.api.process_file", queue="long")
+
+
+@frappe.whitelist()
 def collect():
     print("\n\n-- Collecting Images -- (START)\n")
     collector = ImgCollector()
@@ -254,8 +259,8 @@ def process_file() -> dict[str, Any]:
         process_file_set,
     )
 
-    # Reset database connection at the start
-    frappe.db.commit()
+    # Reset database connection at the start with proper timeout handling
+    _reset_db_connection_with_retry()
 
     # Setup directories
     dirs = FileProcessingDirectories()
@@ -313,7 +318,7 @@ def process_file() -> dict[str, Any]:
                 try:
                     print(f"Processing file set {set_name} for order {order_no}")
                     # Ensure database connection is fresh before processing
-                    frappe.db.commit()
+                    _reset_db_connection_with_retry()
 
                     set_result = process_file_set(
                         manager,
@@ -325,7 +330,7 @@ def process_file() -> dict[str, Any]:
                     )
 
                     # Commit changes immediately after successful processing
-                    frappe.db.commit()
+                    _commit_with_retry()
 
                     # Update order results with this set's results
                     processing_results["details"][order_no]["files_processed"].extend(
@@ -365,14 +370,14 @@ def process_file() -> dict[str, Any]:
                         f"Processing independent file {file_info.filename} for order {order_no}"
                     )
                     # Ensure database connection is fresh before processing
-                    frappe.db.commit()
+                    _reset_db_connection_with_retry()
 
                     processing_result = process_file_with_error_handling(
                         manager, file_info, dirs.processed, dirs.failed
                     )
 
                     # Commit changes immediately after processing
-                    frappe.db.commit()
+                    _commit_with_retry()
 
                     if processing_result["processed"]:
                         processing_results["details"][order_no]["files_processed"].append(
@@ -417,7 +422,7 @@ def process_file() -> dict[str, Any]:
     print("\n\n-- Process File -- (END)")
 
     # Close database connection to avoid connection leaks
-    frappe.db.commit()
+    _commit_with_retry()
 
     img_collector = ImgCollector()
     img_collector_result = img_collector.collect()
@@ -426,6 +431,88 @@ def process_file() -> dict[str, Any]:
         "file_processing_result": processing_results,
         "img_collector_result": img_collector_result,
     }
+
+
+def _reset_db_connection_with_retry(max_retries: int = 3, retry_delay: float = 1.0):
+    """Reset database connection with retry mechanism for lock timeout issues"""
+    import time
+
+    for attempt in range(max_retries):
+        try:
+            # Close any existing connections
+            frappe.db.close()
+            # Reconnect with fresh connection
+            frappe.connect()
+            frappe.db.commit()
+            return
+        except Exception as e:
+            error_msg = str(e).lower()
+            if "lock wait timeout" in error_msg or "deadlock" in error_msg:
+                if attempt < max_retries - 1:
+                    print(
+                        f"Database lock detected, retrying in {retry_delay}s... (attempt {attempt + 1}/{max_retries})"
+                    )
+                    time.sleep(retry_delay)
+                    retry_delay *= 2  # Exponential backoff
+                    continue
+                else:
+                    print(
+                        f"Failed to reset database connection after {max_retries} attempts: {str(e)}"
+                    )
+                    raise
+            else:
+                print(f"Database connection reset failed: {str(e)}")
+                raise
+
+
+def _commit_with_retry(max_retries: int = 3, retry_delay: float = 1.0):
+    """Commit database transaction with retry mechanism for lock timeout issues"""
+    import time
+
+    for attempt in range(max_retries):
+        try:
+            frappe.db.commit()
+            return
+        except Exception as e:
+            error_msg = str(e).lower()
+            if "lock wait timeout" in error_msg or "deadlock" in error_msg:
+                if attempt < max_retries - 1:
+                    print(
+                        f"Database lock detected during commit, retrying in {retry_delay}s... (attempt {attempt + 1}/{max_retries})"
+                    )
+                    try:
+                        frappe.db.rollback()
+                    except:
+                        pass
+                    time.sleep(retry_delay)
+                    retry_delay *= 2  # Exponential backoff
+                    continue
+                else:
+                    print(f"Failed to commit after {max_retries} attempts: {str(e)}")
+                    try:
+                        frappe.db.rollback()
+                    except:
+                        pass
+                    raise
+            else:
+                print(f"Database commit failed: {str(e)}")
+                raise
+
+
+def _handle_database_lock_error(error: Exception, context: str = "") -> bool:
+    """Check if error is a database lock issue and handle appropriately"""
+    error_msg = str(error).lower()
+    if any(
+        keyword in error_msg
+        for keyword in ["lock wait timeout", "deadlock", "try restarting transaction"]
+    ):
+        print(f"Database lock detected in {context}: {str(error)}")
+        try:
+            frappe.db.rollback()
+        except:
+            pass
+        return True
+    return False
 
 
 def process_file_set(
@@ -586,32 +673,54 @@ def _handle_file_processing_error(error: Exception) -> Dict[str, Any]:
     error_type = type(error).__name__
     error_trace = traceback.format_exc()
 
-    # Close any hanging database connections
-    try:
-        frappe.db.commit()
-    except:
-        pass
+    # Check if it's a database lock error
+    is_lock_error = _handle_database_lock_error(error, "file processing")
+
+    # Close any hanging database connections with retry for lock errors
+    if is_lock_error:
+        try:
+            _reset_db_connection_with_retry()
+        except:
+            pass
+    else:
+        try:
+            frappe.db.commit()
+        except:
+            pass
+
+    # Truncate error message if too long to prevent log truncation issues
+    error_message = str(error)
+    if len(error_message) > 500:  # Reasonable limit to prevent truncation
+        error_message = error_message[:500] + "... (truncated)"
 
     # Log the detailed error with traceback
+    log_title = f"File Processing Error: {error_type}"
+    if len(log_title) > 100:
+        log_title = log_title[:100] + "..."
+
     frappe.log_error(
-        message=f"Error in file processing: {str(error)}\n\nTraceback:\n{error_trace}",
-        title=f"File Processing Error: {error_type}",
+        message=f"Error in file processing: {error_message}\n\nTraceback:\n{error_trace}",
+        title=log_title,
     )
 
     # Make sure to close the connection even on error
     try:
-        frappe.db.commit()
+        if is_lock_error:
+            _commit_with_retry()
+        else:
+            frappe.db.commit()
     except:
         pass
 
     # Return a detailed error response with type information
     return {
         "status": "error",
-        "message": _("Error processing file: {0}").format(str(error)),
-        "error_type": "system",
+        "message": _("Error processing file: {0}").format(error_message),
+        "error_type": "database_lock" if is_lock_error else "system",
         "error_details": {
             "type": error_type,
             "is_file_error": isinstance(error, (IOError, OSError)),
+            "is_lock_error": is_lock_error,
         },
     }
 
@@ -662,7 +771,10 @@ def create_error_log_file(
     """
     log_file_path = f"{file_path}.log"
 
-    with open(log_file_path, "w") as log_file:
+    # Clean up nested error messages to prevent truncation issues
+    clean_error_message = _clean_error_message(error_message)
+
+    with open(log_file_path, "w", encoding="utf-8") as log_file:
         _write_line(
             file=log_file,
             message=_("ERROR REPORT: {0}").format(os.path.basename(file_path)),
@@ -673,7 +785,7 @@ def create_error_log_file(
         # Error information section
         _write_line(
             file=log_file,
-            message=_("Error message: {0}").format(error_message),
+            message=_("Error message: {0}").format(clean_error_message),
             before=1,
             prefix="ERROR:",
         )
@@ -791,6 +903,46 @@ def create_error_log_file(
             )
 
     return log_file_path
+
+
+def _clean_error_message(error_message: str) -> str:
+    """Clean up nested error messages to prevent truncation and improve readability"""
+    if not error_message:
+        return error_message
+
+    # Handle nested error messages with "will get truncated" pattern
+    if "will get truncated" in error_message:
+        # Extract the core error message before truncation warnings
+        parts = error_message.split("will get truncated")
+        if parts:
+            core_message = parts[0].strip()
+            # Remove trailing punctuation that might be incomplete
+            core_message = core_message.rstrip(", )")
+            return core_message
+
+    # Handle deeply nested error messages
+    if error_message.count("Error processing") > 2:
+        # Extract the innermost error message
+        lines = error_message.split("Error processing")
+        if len(lines) > 1:
+            # Take the last meaningful part
+            innermost = lines[-1]
+            if ":" in innermost:
+                innermost = innermost.split(":", 1)[-1].strip()
+            return f"Error processing: {innermost}"
+
+    # Handle document modification errors specifically
+    if (
+        "Döküman siz açtıktan sonra değiştirildi" in error_message
+        or "document was modified" in error_message.lower()
+    ):
+        return "Document was modified by another process. Please refresh and try again."
+
+    # Limit message length to prevent truncation
+    if len(error_message) > 1000:
+        return error_message[:1000] + "... (message truncated for readability)"
+
+    return error_message
 
 
 def _write_line(
