@@ -188,6 +188,24 @@ class MLYListProcessor(ExcelProcessorInterface):
                     main_profiles = df
                     break
 
+            # Check for Sandvic Panel scenario
+            is_sandvic_scenario = False
+            if main_profiles is None:
+                # Check if there's a Sandvic Panel
+                for group_name, df_group in grouped_dfs.items():
+                    if not df_group.empty:
+                        for idx, row in df_group.iterrows():
+                            stock_code = str(row["Stok Kodu"])
+                            description = str(row["Açıklama"])
+                            if "Sandvic Panel" in description:
+                                is_sandvic_scenario = True
+                                print(
+                                    f"Detected Sandvic Panel scenario with stock code {stock_code}"
+                                )
+                                break
+                        if is_sandvic_scenario:
+                            break
+
             # Process glass items separately
             glasses = grouped_dfs.get("Camlar", pd.DataFrame())
 
@@ -213,7 +231,7 @@ class MLYListProcessor(ExcelProcessorInterface):
 
             print(f"Processing {len(glasses)} items in Camlar group")
 
-            for _, row in glasses.iterrows():
+            for idx, row in glasses.iterrows():
                 stock_code = row["Stok Kodu"].lstrip("#")
                 is_cam_recipe = frappe.db.exists("Cam Recipe", stock_code)
                 is_profile_type = frappe.db.exists("Profile Type", stock_code)
@@ -277,31 +295,57 @@ class MLYListProcessor(ExcelProcessorInterface):
             # Only create BOM if this is not a glass-only file
             bom_result = None
             if not is_glass_only:
-                # Create BOM from remaining items (excluding glass items)
-                # Filter out glass items from all_items_df and include any profile items found in the glass group
-                non_glass_dfs = []
-                for group_name, df in grouped_dfs.items():
-                    if group_name != "Camlar" and len(df) > 0:
-                        non_glass_dfs.append(df)
+                # Check if this is a Sandvic Panel scenario
+                if is_sandvic_scenario:
+                    # Create BOM from remaining items (excluding glass items) using Sandvic BOM method
+                    non_glass_dfs = []
+                    for group_name, df in grouped_dfs.items():
+                        if group_name != "Camlar" and len(df) > 0:
+                            non_glass_dfs.append(df)
 
-                # If we have profile items that were in the glass group, add them to all_items_df
-                if profile_items_in_glass:
-                    print(
-                        f"Adding {len(profile_items_in_glass)} profile items from glass group to BOM items"
+                    # If we have profile items that were in the glass group, add them to all_items_df
+                    if profile_items_in_glass:
+                        print(
+                            f"Adding {len(profile_items_in_glass)} profile items from glass group to BOM items"
+                        )
+                        profile_df = pd.DataFrame(profile_items_in_glass)
+                        non_glass_dfs.append(profile_df)
+
+                    all_items_df = (
+                        pd.concat(non_glass_dfs) if non_glass_dfs else pd.DataFrame()
                     )
-                    profile_df = pd.DataFrame(profile_items_in_glass)
-                    non_glass_dfs.append(profile_df)
+                    # Create Sandvic BOM for main item
+                    bom_result = self._create_sandvic_bom(
+                        item.name,
+                        poz_data.get("ADET"),
+                        all_items_df,
+                    )
+                else:
+                    # Create BOM from remaining items (excluding glass items)
+                    # Filter out glass items from all_items_df and include any profile items found in the glass group
+                    non_glass_dfs = []
+                    for group_name, df in grouped_dfs.items():
+                        if group_name != "Camlar" and len(df) > 0:
+                            non_glass_dfs.append(df)
 
-                all_items_df = (
-                    pd.concat(non_glass_dfs) if non_glass_dfs else pd.DataFrame()
-                )
-                # Create BOM for main item
-                bom_result = self._create_bom(
-                    item.name,
-                    poz_data.get("ADET"),
-                    main_profiles,
-                    all_items_df,
-                )
+                    # If we have profile items that were in the glass group, add them to all_items_df
+                    if profile_items_in_glass:
+                        print(
+                            f"Adding {len(profile_items_in_glass)} profile items from glass group to BOM items"
+                        )
+                        profile_df = pd.DataFrame(profile_items_in_glass)
+                        non_glass_dfs.append(profile_df)
+
+                    all_items_df = (
+                        pd.concat(non_glass_dfs) if non_glass_dfs else pd.DataFrame()
+                    )
+                    # Create BOM for main item
+                    bom_result = self._create_bom(
+                        item.name,
+                        poz_data.get("ADET"),
+                        main_profiles,
+                        all_items_df,
+                    )
 
                 if bom_result.get("status") == "error":
                     return {
@@ -412,7 +456,7 @@ class MLYListProcessor(ExcelProcessorInterface):
 
         # Only check main profiles if they exist
         if not main_profiles.empty:
-            for _, row in main_profiles.iterrows():
+            for idx, row in main_profiles.iterrows():
                 stock_code = row["Stok Kodu"].lstrip("#")
                 if not frappe.db.exists("Profile Type", stock_code):
                     missing_items.append(
@@ -424,7 +468,7 @@ class MLYListProcessor(ExcelProcessorInterface):
                         }
                     )
 
-        for _, row in df.iterrows():
+        for idx, row in df.iterrows():
             stock_code = row["Stok Kodu"].lstrip("#")
 
             if not frappe.db.exists("Item", stock_code):
@@ -466,7 +510,7 @@ class MLYListProcessor(ExcelProcessorInterface):
         # Process BOM items
         items_table = []
         accessory_kits_table = []
-        for _, row in df.iterrows():
+        for idx, row in df.iterrows():
             stock_code = row["Stok Kodu"].lstrip("#")
 
             item = frappe.get_doc("Item", stock_code)
@@ -500,6 +544,92 @@ class MLYListProcessor(ExcelProcessorInterface):
         return {
             "status": "success",
             "message": "BOM created successfully.",
+            "docname": bom.name,
+            "total_cost": bom.total_cost,
+        }
+
+    def _create_sandvic_bom(
+        self,
+        item_name: str,
+        qty: float,
+        df: Any,
+    ) -> Dict[str, Any]:
+        """Create Bill of Materials document for Sandvic Panel with only 'Çıta' operation"""
+        print(f"\n-- Creating Sandvic BOM {item_name} -- (START)")
+
+        missing_items = []
+
+        # Check if all items exist
+        for idx, row in df.iterrows():
+            stock_code = row["Stok Kodu"].lstrip("#")
+
+            if not frappe.db.exists("Item", stock_code):
+                print(f"\n\nMISSING ITEM: {stock_code}\n\n")
+                missing_items.append(
+                    {
+                        "stock_code": stock_code,
+                        "type": "Item",
+                        "order_no": item_name.split("-")[0],
+                        "poz_no": item_name.split("-")[1],
+                    }
+                )
+
+        if missing_items:
+            return {
+                "status": "error",
+                "message": "Missing items detected",
+                "missing_items": missing_items,
+            }
+
+        company = frappe.defaults.get_user_default("Company")
+        bom = frappe.new_doc("BOM")
+        bom.item = item_name
+        bom.company = company
+        bom.quantity = qty
+        bom.rm_cost_as_per = "Price List"
+        bom.buying_price_list = "Standard Buying"
+
+        # Process BOM items
+        items_table = []
+        accessory_kits_table = []
+        for idx, row in df.iterrows():
+            stock_code = row["Stok Kodu"].lstrip("#")
+
+            item = frappe.get_doc("Item", stock_code)
+            if not item.custom_kit:
+                items_table.append(self._create_bom_item(row, item))
+            else:
+                bom.custom_accessory_kit = item.get("item_code")
+                bom.custom_accessory_kit_qty = get_float_value(row.get("Miktar"))
+                accessory_kits_table.append(
+                    {
+                        "kit_name": item.get("item_code"),
+                        "quantity": get_float_value(row.get("Miktar")),
+                    }
+                )
+
+        # Add only 'Çıta' operation for Sandvic Panel
+        operation_items = []
+        cita_operation = frappe.get_doc("Operation", "Çıta")
+        operation_items.append(
+            {
+                "operation": cita_operation.name,
+                "workstation": cita_operation.workstation,
+                "time_in_mins": 9,
+            }
+        )
+
+        bom.with_operations = 1
+        bom.set("operations", operation_items)
+        bom.set("items", items_table)
+        bom.set("custom_accessory_kits", accessory_kits_table)
+        bom.save(ignore_permissions=True)
+        bom.submit()
+
+        print(f"-- Creating Sandvic BOM {item_name} -- (END)\n")
+        return {
+            "status": "success",
+            "message": "Sandvic BOM created successfully.",
             "docname": bom.name,
             "total_cost": bom.total_cost,
         }
@@ -553,7 +683,7 @@ class MLYListProcessor(ExcelProcessorInterface):
                 "item_name": glass_item_name,
                 "item_group": "Camlar",
                 "stock_uom": "Nos",
-                "descrioption": row.get("Açıklama", ""),
+                "description": row.get("Açıklama", ""),
                 "custom_quantity": for_qty,
                 "custom_glass_m2": get_float_value(row.get("Miktar")),
                 "custom_amount_per_piece": get_float_value(row.get("Miktar")),
