@@ -197,7 +197,7 @@ class MLYListProcessor(ExcelProcessorInterface):
                         for idx, row in df_group.iterrows():
                             stock_code = str(row["Stok Kodu"])
                             description = str(row["Açıklama"])
-                            if "Sandvic Panel" in description:
+                            if "Sandvic" in description or "Lambri" in description:
                                 is_sandvic_scenario = True
                                 print(
                                     f"Detected Sandvic Panel scenario with stock code {stock_code}"
