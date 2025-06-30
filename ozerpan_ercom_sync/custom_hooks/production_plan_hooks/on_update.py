@@ -11,14 +11,16 @@ def on_update(doc, method):
         if is_pvc:
             bom = frappe.get_doc("BOM", item.bom_no)
             kkt_operation = next(
-                o for o in bom.operations if o.operation == "Kaynak Köşe Temizleme"
+                (o for o in bom.operations if o.operation == "Kaynak Köşe Temizleme"),
+                None,
             )
-            frappe.db.set_value(
-                "BOM Operation",
-                kkt_operation.name,
-                "workstation",
-                item.custom_workstation,
-            )
+            if kkt_operation:
+                frappe.db.set_value(
+                    "BOM Operation",
+                    kkt_operation.name,
+                    "workstation",
+                    item.custom_workstation,
+                )
         else:
             item.custom_workstation = "Bottero"
 
