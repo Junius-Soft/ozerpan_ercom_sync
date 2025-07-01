@@ -125,6 +125,302 @@ def save_with_retry(doc, max_retries=3):
             doc.reload()
 
 
+def complete_job_bulk(job_card_names: list, qty: int, employee: str) -> None:
+    """
+    Complete multiple job cards simultaneously using direct SQL updates
+    to bypass the overlap validation that prevents the same employee
+    from working on multiple workstations.
+    """
+    try:
+        from datetime import datetime
+
+        current_time = frappe.utils.now()
+
+        # Update time logs for all job cards in bulk
+        for job_card_name in job_card_names:
+            # Find the open time log (without to_time) for each job card
+            open_time_logs = frappe.db.sql(
+                """
+                SELECT name, from_time FROM `tabJob Card Time Log`
+                WHERE parent = %s AND to_time IS NULL
+                ORDER BY idx DESC
+                LIMIT 1
+            """,
+                (job_card_name,),
+                as_dict=True,
+            )
+
+            if open_time_logs:
+                time_log_name = open_time_logs[0].name
+                from_time = open_time_logs[0].from_time
+
+                # Calculate time_in_mins
+                # Convert from_time to datetime if it's a string
+                if isinstance(from_time, str):
+                    try:
+                        from_time_dt = frappe.utils.get_datetime(from_time)
+                    except Exception:
+                        from_time_dt = datetime.fromisoformat(
+                            from_time.replace("Z", "+00:00")
+                        )
+                else:
+                    from_time_dt = from_time
+
+                # Convert current_time to datetime if it's a string
+                if isinstance(current_time, str):
+                    try:
+                        to_time_dt = frappe.utils.get_datetime(current_time)
+                    except Exception:
+                        to_time_dt = datetime.fromisoformat(
+                            current_time.replace("Z", "+00:00")
+                        )
+                else:
+                    to_time_dt = current_time
+
+                # Calculate time difference in minutes
+                time_diff = to_time_dt - from_time_dt
+                time_in_mins = max(0, int(time_diff.total_seconds() / 60))
+
+                # Update the time log directly
+                frappe.db.sql(
+                    """
+                    UPDATE `tabJob Card Time Log`
+                    SET to_time = %s, completed_qty = %s, time_in_mins = %s, modified = %s
+                    WHERE name = %s
+                """,
+                    (current_time, qty, time_in_mins, current_time, time_log_name),
+                )
+
+                # Calculate total time in minutes for the job card
+                total_time_result = frappe.db.sql(
+                    """
+                    SELECT SUM(time_in_mins) as total_time
+                    FROM `tabJob Card Time Log`
+                    WHERE parent = %s
+                """,
+                    (job_card_name,),
+                    as_dict=True,
+                )
+
+                total_time_in_mins = (
+                    total_time_result[0].total_time
+                    if total_time_result and total_time_result[0].total_time
+                    else 0
+                )
+
+                # Calculate total completed quantity for the job card
+                total_qty_result = frappe.db.sql(
+                    """
+                    SELECT SUM(completed_qty) as total_completed
+                    FROM `tabJob Card Time Log`
+                    WHERE parent = %s AND completed_qty IS NOT NULL
+                """,
+                    (job_card_name,),
+                    as_dict=True,
+                )
+
+                total_completed_qty = (
+                    total_qty_result[0].total_completed
+                    if total_qty_result and total_qty_result[0].total_completed
+                    else 0
+                )
+
+                # Update job card status to Completed with total time, completed qty, and actual end date
+                frappe.db.sql(
+                    """
+                    UPDATE `tabJob Card`
+                    SET status = 'Completed', total_time_in_mins = %s, total_completed_qty = %s, actual_end_date = %s, modified = %s
+                    WHERE name = %s
+                """,
+                    (
+                        total_time_in_mins,
+                        total_completed_qty,
+                        current_time,
+                        current_time,
+                        job_card_name,
+                    ),
+                )
+
+        # Commit the changes
+        frappe.db.commit()
+
+    except Exception as e:
+        frappe.db.rollback()
+        frappe.log_error(f"Error completing jobs in bulk: {str(e)}")
+        raise
+
+
+def update_job_card_status_bulk(
+    job_card_names: list, status: str, employee: str = None, reason: str = None
+) -> None:
+    """
+    Update multiple job cards status simultaneously using direct SQL updates
+    to bypass the overlap validation that prevents the same employee
+    from working on multiple workstations.
+    """
+    try:
+        current_time = frappe.utils.now()
+
+        for job_card_name in job_card_names:
+            if status == "Work In Progress" and employee:
+                # Check if job card already has actual_start_date
+                job_card_data = frappe.db.get_value(
+                    "Job Card", job_card_name, ["actual_start_date"], as_dict=True
+                )
+
+                # Update job card status and actual_start_date if needed
+                if not job_card_data.actual_start_date:
+                    frappe.db.sql(
+                        """
+                        UPDATE `tabJob Card`
+                        SET status = %s, actual_start_date = %s, modified = %s
+                        WHERE name = %s
+                    """,
+                        (status, current_time, current_time, job_card_name),
+                    )
+                else:
+                    frappe.db.sql(
+                        """
+                        UPDATE `tabJob Card`
+                        SET status = %s, modified = %s
+                        WHERE name = %s
+                    """,
+                        (status, current_time, job_card_name),
+                    )
+
+                # Get the next idx value for the time log
+                max_idx_result = frappe.db.sql(
+                    """
+                    SELECT COALESCE(MAX(idx), 0) + 1 as next_idx
+                    FROM `tabJob Card Time Log`
+                    WHERE parent = %s
+                """,
+                    (job_card_name,),
+                    as_dict=True,
+                )
+
+                next_idx = max_idx_result[0].next_idx if max_idx_result else 1
+
+                # Add new time log entry
+                frappe.db.sql(
+                    """
+                    INSERT INTO `tabJob Card Time Log` (name, parent, parenttype, parentfield, idx, from_time, employee, creation, modified, docstatus)
+                    VALUES (%s, %s, 'Job Card', 'time_logs', %s, %s, %s, %s, %s, 0)
+                """,
+                    (
+                        frappe.generate_hash(),
+                        job_card_name,
+                        next_idx,
+                        current_time,
+                        employee,
+                        current_time,
+                        current_time,
+                    ),
+                )
+
+            elif status == "On Hold":
+                # Find the open time log (without to_time) and close it
+                open_time_logs = frappe.db.sql(
+                    """
+                    SELECT name, from_time FROM `tabJob Card Time Log`
+                    WHERE parent = %s AND to_time IS NULL
+                    ORDER BY idx DESC
+                    LIMIT 1
+                """,
+                    (job_card_name,),
+                    as_dict=True,
+                )
+
+                if open_time_logs:
+                    time_log_name = open_time_logs[0].name
+                    from_time = open_time_logs[0].from_time
+
+                    # Calculate time_in_mins
+                    from datetime import datetime
+
+                    # Convert from_time to datetime if it's a string
+                    if isinstance(from_time, str):
+                        try:
+                            from_time_dt = frappe.utils.get_datetime(from_time)
+                        except Exception:
+                            from_time_dt = datetime.fromisoformat(
+                                from_time.replace("Z", "+00:00")
+                            )
+                    else:
+                        from_time_dt = from_time
+
+                    # Convert current_time to datetime if it's a string
+                    if isinstance(current_time, str):
+                        try:
+                            to_time_dt = frappe.utils.get_datetime(current_time)
+                        except Exception:
+                            to_time_dt = datetime.fromisoformat(
+                                current_time.replace("Z", "+00:00")
+                            )
+                    else:
+                        to_time_dt = current_time
+
+                    # Calculate time difference in minutes
+                    time_diff = to_time_dt - from_time_dt
+                    time_in_mins = max(0, int(time_diff.total_seconds() / 60))
+
+                    # Update the time log to close it
+                    frappe.db.sql(
+                        """
+                        UPDATE `tabJob Card Time Log`
+                        SET to_time = %s, time_in_mins = %s, custom_reason = %s, modified = %s
+                        WHERE name = %s
+                    """,
+                        (current_time, time_in_mins, reason, current_time, time_log_name),
+                    )
+
+                # Calculate total time in minutes for the job card
+                total_time_result = frappe.db.sql(
+                    """
+                    SELECT SUM(time_in_mins) as total_time
+                    FROM `tabJob Card Time Log`
+                    WHERE parent = %s
+                """,
+                    (job_card_name,),
+                    as_dict=True,
+                )
+
+                total_time_in_mins = (
+                    total_time_result[0].total_time
+                    if total_time_result and total_time_result[0].total_time
+                    else 0
+                )
+
+                # Update job card status and total time
+                frappe.db.sql(
+                    """
+                    UPDATE `tabJob Card`
+                    SET status = %s, total_time_in_mins = %s, modified = %s
+                    WHERE name = %s
+                """,
+                    (status, total_time_in_mins, current_time, job_card_name),
+                )
+
+            else:
+                # For other statuses, just update the status
+                frappe.db.sql(
+                    """
+                    UPDATE `tabJob Card`
+                    SET status = %s, modified = %s
+                    WHERE name = %s
+                """,
+                    (status, current_time, job_card_name),
+                )
+
+        # Commit the changes
+        frappe.db.commit()
+
+    except Exception as e:
+        frappe.db.rollback()
+        frappe.log_error(f"Error updating job card status in bulk: {str(e)}")
+        raise
+
+
 def format_job_card_response(job_card_doc):
     """Format a Frappe Job Card document into a specific response structure."""
     required_job_card_fields = [

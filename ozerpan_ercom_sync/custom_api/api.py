@@ -7,11 +7,12 @@ from frappe import _
 
 from ozerpan_ercom_sync.custom_api.barcode_reader.constants import BarcodeStatus
 from ozerpan_ercom_sync.custom_api.barcode_reader.utils.job_card import (
-    complete_job,
+    complete_job_bulk,
     get_job_card,
     save_with_retry,
     submit_job_card,
     update_job_card_status,
+    update_job_card_status_bulk,
 )
 from ozerpan_ercom_sync.custom_api.barcode_reader.utils.tesdetay import get_tesdetay
 from ozerpan_ercom_sync.custom_api.file_processor.handlers.img_collector import (
@@ -162,43 +163,118 @@ def update_job_cards():
     missing_job_cards = []
     messages = []
 
-    for jc_name in form_data.job_cards:
-        try:
-            jc_doc = frappe.get_doc("Job Card", jc_name)
-        except frappe.DoesNotExistError:
-            missing_job_cards.append(jc_name)
-            continue
+    # For bulk completion, collect all valid job cards first
+    if target_status == "Completed":
+        valid_job_cards_for_completion = []
 
-        if jc_doc.status == target_status:
-            messages.append(f"Job Card is already {jc_doc.status}: {jc_doc.name}")
-            continue
+        for jc_name in form_data.job_cards:
+            try:
+                jc_doc = frappe.get_doc("Job Card", jc_name)
+            except frappe.DoesNotExistError:
+                missing_job_cards.append(jc_name)
+                continue
 
-        if jc_doc.status == "Completed":
-            messages.append(f"Job Card is already completed: {jc_doc.name}")
-            continue
+            if jc_doc.status == target_status:
+                messages.append(f"Job Card is already {jc_doc.status}: {jc_doc.name}")
+                continue
 
-        if target_status == "Completed":
+            if jc_doc.status == "Completed":
+                messages.append(f"Job Card is already completed: {jc_doc.name}")
+                continue
+
             if jc_doc.status != "Work In Progress":
                 messages.append(
                     f"Only Work In Progress Job Cards can be completed: {jc_doc.name} - {jc_doc.status}"
                 )
                 continue
-            complete_job(jc_doc, jc_doc.for_quantity)
-            submit_job_card(jc_doc)
-            messages.append(
-                f"Job Card successfully completed: {jc_doc} - {target_status}"
-            )
 
-        elif target_status in ["Work In Progress", "On Hold"]:
-            update_job_card_status(
-                job_card=jc_doc,
-                status=target_status,
-                employee=employee,
-                reason=reason,
-            )
-            messages.append(
-                f"Job Card status changed successfully: {jc_doc} - {target_status}"
-            )
+            valid_job_cards_for_completion.append(jc_name)
+
+        # Complete all valid job cards in bulk to avoid overlap validation
+        if valid_job_cards_for_completion:
+            try:
+                # Get the first job card to determine the quantity
+                first_jc = frappe.get_doc("Job Card", valid_job_cards_for_completion[0])
+                complete_job_bulk(
+                    valid_job_cards_for_completion, first_jc.for_quantity, employee
+                )
+
+                # Submit all job cards after bulk completion
+                for jc_name in valid_job_cards_for_completion:
+                    jc_doc = frappe.get_doc("Job Card", jc_name)
+                    submit_job_card(jc_doc)
+                    messages.append(
+                        f"Job Card successfully completed: {jc_name} - {target_status}"
+                    )
+            except Exception as e:
+                frappe.log_error(f"Error in bulk job completion: {str(e)}")
+                messages.append(f"Error completing job cards in bulk: {str(e)}")
+
+    else:
+        # Handle non-completion status updates - use bulk operations for Work In Progress and On Hold
+        if target_status in ["Work In Progress", "On Hold"]:
+            valid_job_cards_for_status_update = []
+
+            for jc_name in form_data.job_cards:
+                try:
+                    jc_doc = frappe.get_doc("Job Card", jc_name)
+                except frappe.DoesNotExistError:
+                    missing_job_cards.append(jc_name)
+                    continue
+
+                if jc_doc.status == target_status:
+                    messages.append(f"Job Card is already {jc_doc.status}: {jc_doc.name}")
+                    continue
+
+                if jc_doc.status == "Completed":
+                    messages.append(f"Job Card is already completed: {jc_doc.name}")
+                    continue
+
+                valid_job_cards_for_status_update.append(jc_name)
+
+            # Update all valid job cards in bulk to avoid overlap validation
+            if valid_job_cards_for_status_update:
+                try:
+                    update_job_card_status_bulk(
+                        job_card_names=valid_job_cards_for_status_update,
+                        status=target_status,
+                        employee=employee,
+                        reason=reason,
+                    )
+
+                    for jc_name in valid_job_cards_for_status_update:
+                        messages.append(
+                            f"Job Card status changed successfully: {jc_name} - {target_status}"
+                        )
+                except Exception as e:
+                    frappe.log_error(f"Error in bulk status update: {str(e)}")
+                    messages.append(f"Error updating job cards in bulk: {str(e)}")
+        else:
+            # Handle other status updates individually
+            for jc_name in form_data.job_cards:
+                try:
+                    jc_doc = frappe.get_doc("Job Card", jc_name)
+                except frappe.DoesNotExistError:
+                    missing_job_cards.append(jc_name)
+                    continue
+
+                if jc_doc.status == target_status:
+                    messages.append(f"Job Card is already {jc_doc.status}: {jc_doc.name}")
+                    continue
+
+                if jc_doc.status == "Completed":
+                    messages.append(f"Job Card is already completed: {jc_doc.name}")
+                    continue
+
+                update_job_card_status(
+                    job_card=jc_doc,
+                    status=target_status,
+                    employee=employee,
+                    reason=reason,
+                )
+                messages.append(
+                    f"Job Card status changed successfully: {jc_doc} - {target_status}"
+                )
 
     response = {}
     if missing_job_cards:
