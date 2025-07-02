@@ -17,11 +17,13 @@ class BarcodeReader:
 
     def _register_handlers(self):
         from .handlers.default_handler import DefaultOperationHandler
+        from .handlers.kanat_hazirlik_handler import KanatHazirlikHandler
         from .handlers.kaynak_kose_handler import KaynakKoseHandler
         from .handlers.quality_control_handler import QualityControlHandler
 
         self.handlers = {
             OperationType.KAYNAK_KOSE.value: KaynakKoseHandler(),
+            OperationType.KANAT_HAZIRLIK.value: KanatHazirlikHandler(),
             OperationType.KALITE.value: QualityControlHandler(),
             "default": DefaultOperationHandler(),
         }
