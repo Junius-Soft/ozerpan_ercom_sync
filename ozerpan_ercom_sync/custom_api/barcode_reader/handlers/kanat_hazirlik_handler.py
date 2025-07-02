@@ -20,17 +20,36 @@ from ..utils.job_card import (
 )
 
 
-class KaynakKoseHandler(OperationHandler):
+class KanatHazirlikHandler(OperationHandler):
     def get_related_barcodes(
         self, job_card: Any, current_barcode: BarcodeInfo
     ) -> List[BarcodeInfo]:
-        """Group barcodes by model and sanal_adet. For KANAT model, group by araba_no and yer_no."""
+        """
+        For Kanat Hazirlik operation:
+        - Only KANAT barcodes can be scanned
+        - Group KANAT barcodes by araba_no, yer_no, and sanal_adet
+        - Include related Kasa and Kayit barcodes that are not completed
+        """
         result = []
-        if current_barcode.model == "KASA":
-            # Include both KASA and KAYIT models
-            for b in job_card.custom_barcodes:
-                if b.model in ["KASA", "KAYIT"] and int(b.sanal_adet) == int(
-                    current_barcode.sanal_adet
+
+        # Validate that only KANAT barcodes are accepted
+        if current_barcode.model != "KANAT":
+            frappe.throw(_("Only KANAT barcodes are allowed in Kanat Hazirlik operation"))
+
+        # Get current KANAT's araba_no and yer_no
+        current_tesdetay = frappe.get_doc("TesDetay", current_barcode.tesdetay_ref)
+        current_araba_no = current_tesdetay.araba_no
+        current_yer_no = current_tesdetay.yer_no
+
+        for b in job_card.custom_barcodes:
+            # Include KANAT barcodes with matching araba_no, yer_no, and sanal_adet
+            if b.model == "KANAT" and int(b.sanal_adet) == int(
+                current_barcode.sanal_adet
+            ):
+                tesdetay = frappe.get_doc("TesDetay", b.tesdetay_ref)
+                if (
+                    tesdetay.araba_no == current_araba_no
+                    and tesdetay.yer_no == current_yer_no
                 ):
                     result.append(
                         BarcodeInfo(
@@ -43,53 +62,25 @@ class KaynakKoseHandler(OperationHandler):
                             quality_data=b.quality_data,
                         )
                     )
-        elif current_barcode.model == "KANAT":
-            # Special handling for KANAT: group by araba_no and yer_no instead of all KANATs
-            # This ensures that when a KANAT barcode is scanned, only related KANATs with
-            # the same araba_no and yer_no are processed together
-            current_tesdetay = frappe.get_doc("TesDetay", current_barcode.tesdetay_ref)
-            current_araba_no = current_tesdetay.araba_no
-            current_yer_no = current_tesdetay.yer_no
 
-            for b in job_card.custom_barcodes:
-                if b.model == "KANAT" and int(b.sanal_adet) == int(
-                    current_barcode.sanal_adet
-                ):
-                    tesdetay = frappe.get_doc("TesDetay", b.tesdetay_ref)
-                    # Only include KANATs with matching araba_no and yer_no
-                    if (
-                        tesdetay.araba_no == current_araba_no
-                        and tesdetay.yer_no == current_yer_no
-                    ):
-                        result.append(
-                            BarcodeInfo(
-                                barcode=b.barcode,
-                                model=b.model,
-                                sanal_adet=int(b.sanal_adet),
-                                tesdetay_ref=b.tesdetay_ref,
-                                status=BarcodeStatus(b.status),
-                                job_card_ref=job_card.name,
-                                quality_data=b.quality_data,
-                            )
-                        )
-        else:
-            # Original logic for other models
-            result = [
-                BarcodeInfo(
-                    barcode=b.barcode,
-                    model=b.model,
-                    sanal_adet=int(b.sanal_adet),
-                    tesdetay_ref=b.tesdetay_ref,
-                    status=BarcodeStatus(b.status),
-                    job_card_ref=job_card.name,
-                    quality_data=b.quality_data,
+            # Include Kasa and Kayit barcodes with same sanal_adet that are not completed
+            elif (
+                b.model in ["KASA", "KAYIT"]
+                and int(b.sanal_adet) == int(current_barcode.sanal_adet)
+                and b.status != BarcodeStatus.COMPLETED.value
+            ):
+                result.append(
+                    BarcodeInfo(
+                        barcode=b.barcode,
+                        model=b.model,
+                        sanal_adet=int(b.sanal_adet),
+                        tesdetay_ref=b.tesdetay_ref,
+                        status=BarcodeStatus(b.status),
+                        job_card_ref=job_card.name,
+                        quality_data=b.quality_data,
+                    )
                 )
-                for b in job_card.custom_barcodes
-                if (
-                    b.model == current_barcode.model
-                    and int(b.sanal_adet) == int(current_barcode.sanal_adet)
-                )
-            ]
+
         return result
 
     def handle_barcode(
