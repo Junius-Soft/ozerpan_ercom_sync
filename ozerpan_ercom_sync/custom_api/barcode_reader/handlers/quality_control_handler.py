@@ -56,10 +56,11 @@ class QualityControlHandler(OperationHandler):
         job_card: Any,
         employee: str,
         quality_data: Optional[QualityData] = None,
+        tesdetay_ref: Optional[str] = None,
     ) -> Dict[str, Any]:
         self.validate_operation(job_card)
 
-        current_barcode = self._get_current_barcode(job_card, barcode)
+        current_barcode = self._get_current_barcode(job_card, barcode, tesdetay_ref)
         related_barcodes = self.get_related_barcodes(job_card, current_barcode)
         quality_json_data = (
             json.loads(current_barcode.quality_data)
@@ -349,7 +350,35 @@ Criteria Results:"""
             "quality_data": json.loads(quality_data) if quality_data else None,
         }
 
-    _get_current_barcode = KaynakKoseHandler._get_current_barcode
+    def _get_current_barcode(
+        self, job_card: Any, barcode: str, tesdetay_ref: Optional[str] = None
+    ) -> BarcodeInfo:
+        # If tesdetay_ref is provided, find the specific barcode entry
+        if tesdetay_ref:
+            b = next(
+                (
+                    b
+                    for b in job_card.custom_barcodes
+                    if b.barcode == barcode and b.tesdetay_ref == tesdetay_ref
+                ),
+                None,
+            )
+        else:
+            b = next((b for b in job_card.custom_barcodes if b.barcode == barcode), None)
+
+        if not b:
+            frappe.throw(_("Barcode not found in job card"))
+
+        return BarcodeInfo(
+            barcode=b.barcode,
+            model=b.model,
+            sanal_adet=int(b.sanal_adet),
+            tesdetay_ref=b.tesdetay_ref,
+            status=BarcodeStatus(b.status),
+            job_card_ref=job_card.name,
+            quality_data=b.quality_data,
+        )
+
     _get_other_in_progress_jobs = KaynakKoseHandler._get_other_in_progress_jobs
     _complete_barcode_group = KaynakKoseHandler._complete_barcode_group
     _complete_other_job_cards = KaynakKoseHandler._complete_other_job_cards

@@ -34,12 +34,35 @@ class BarcodeReader:
         employee: str,
         operation: str,
         quality_data: Optional[Dict] = None,
+        order_no: Optional[str] = None,
+        poz_no: Optional[int] = None,
     ) -> Dict[str, Any]:
         print("\n\n\n")
         print("--- Reader.read_barcode ---")
-        tesdetay = get_tesdetay(barcode=barcode, operation=operation)
+        tesdetay = get_tesdetay(
+            barcode=barcode, operation=operation, order_no=order_no, poz_no=poz_no
+        )
         if not tesdetay:
             raise InvalidBarcodeError("Invalid Barcode")
+
+        # If multiple options are returned, send them back to client for selection
+        if isinstance(tesdetay, list):
+            return {
+                "status": "multiple_options",
+                "message": _("Multiple TesDetay entries found. Please select one."),
+                "operation": operation,
+                "options": tesdetay,
+            }
+
+        # If this is a completed TesDetay (for information only), return info without processing
+        if tesdetay.get("for_information_only"):
+            return {
+                "status": "information_only",
+                "message": _(
+                    "This TesDetay is already completed for the specified operation."
+                ),
+                "tesdetay_info": tesdetay,
+            }
 
         job_card = get_job_card(
             operation=operation,
@@ -56,9 +79,16 @@ class BarcodeReader:
             job_card=job_card,
             employee=employee,
             quality_data=parsed_quality_data,
+            tesdetay_ref=tesdetay.get("name"),
         )
 
-        poz_data = get_poz_data(barcode)
+        poz_data = get_poz_data(
+            barcode=barcode,
+            tesdetay_name=tesdetay.get("name"),
+            order_no=tesdetay.get("siparis_no"),
+            poz_no=tesdetay.get("poz_no"),
+            sanal_adet=tesdetay.get("sanal_adet"),
+        )
         formatted_job_card = format_job_card_response(job_card)
 
         return {

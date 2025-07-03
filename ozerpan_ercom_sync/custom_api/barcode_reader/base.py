@@ -16,6 +16,7 @@ class OperationHandler(ABC):
         job_card: Any,
         employee: str,
         quality_data: Optional[QualityData] = None,
+        tesdetay_ref: Optional[str] = None,
     ) -> Dict[str, Any]:
         pass
 
