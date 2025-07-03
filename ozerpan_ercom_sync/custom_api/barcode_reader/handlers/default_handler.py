@@ -34,10 +34,11 @@ class DefaultOperationHandler(OperationHandler):
         job_card: Any,
         employee: str,
         quality_data: Optional[QualityData] = None,
+        tesdetay_ref: Optional[str] = None,
     ) -> Dict[str, Any]:
         self.validate_operation(job_card)
 
-        current_barcode = self._get_current_barcode(job_card, barcode)
+        current_barcode = self._get_current_barcode(job_card, barcode, tesdetay_ref)
         related_barcodes = self.get_related_barcodes(job_card, current_barcode)
 
         if current_barcode.status == BarcodeStatus.COMPLETED:
@@ -52,7 +53,7 @@ class DefaultOperationHandler(OperationHandler):
                 }
 
             next_job_card = uncompleted_job_cards[0]
-            next_barcode = self._get_current_barcode(next_job_card, barcode)
+            next_barcode = self._get_current_barcode(next_job_card, barcode, tesdetay_ref)
             next_related_barcodes = self.get_related_barcodes(next_job_card, next_barcode)
 
             if next_barcode.status == BarcodeStatus.PENDING:

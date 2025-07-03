@@ -73,5 +73,7 @@ Has Glass Item,Cam Ürün Var
 Glass List Uploaded,Cam Listesi Yüklendi
 Processing failed due to missing required items,Gerekli öğeler eksik olduğu için işleme başarısız oldu
 Please upload CAMLISTE file.,Lütfen CAMLISTE dosyasını yükleyin.
-Please upload required files.
-Price List Uploaded
+Please upload required files.,Lütfen gerekli dosyaları yükleyin.
+Price List Uploaded,Fiyat Listesi Yüklendi
+
+Only KANAT barcodes are allowed in Kanat Hazirlik operation,Kanat Hazırlik işleminde sadece KANAT barkodlarına izin verilir

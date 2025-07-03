@@ -1,10 +1,37 @@
+from typing import Optional
+
 import frappe
 
 
 @frappe.whitelist()
-def get_poz_data(barcode: str):
+def get_poz_data(
+    barcode: str,
+    tesdetay_name: Optional[str] = None,
+    order_no: Optional[str] = None,
+    poz_no: Optional[int] = None,
+    sanal_adet: Optional[int] = None,
+):
     print("\n\n\n--- Get Poz Data ---")
-    tesdetay = frappe.get_doc("TesDetay", {"barkod": barcode})
+
+    # If tesdetay_name is provided and not empty, use it directly
+    if tesdetay_name and tesdetay_name.strip():
+        tesdetay = frappe.get_doc("TesDetay", tesdetay_name)
+    # If order_no and poz_no are provided, find the specific TesDetay
+    elif order_no and poz_no:
+        tesdetay_filters = {"barkod": barcode, "siparis_no": order_no, "poz_no": poz_no}
+        # Include sanal_adet in search if provided to get the exact TesDetay
+        if sanal_adet is not None:
+            tesdetay_filters["sanal_adet"] = sanal_adet
+        found_tesdetay_name = frappe.db.get_value("TesDetay", tesdetay_filters, "name")
+        if not found_tesdetay_name:
+            error_msg = f"No TesDetay found for barcode: {barcode}, order_no: {order_no}, poz_no: {poz_no}"
+            if sanal_adet is not None:
+                error_msg += f", sanal_adet: {sanal_adet}"
+            frappe.throw(error_msg)
+        tesdetay = frappe.get_doc("TesDetay", found_tesdetay_name)
+    # Fallback to original behavior (first match by barcode)
+    else:
+        tesdetay = frappe.get_doc("TesDetay", {"barkod": barcode})
     sales_order = frappe.get_doc("Sales Order", tesdetay.siparis_no)
 
     bom_name = f"BOM-{tesdetay.siparis_no}-{tesdetay.poz_no}"
