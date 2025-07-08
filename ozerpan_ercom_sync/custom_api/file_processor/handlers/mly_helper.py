@@ -60,6 +60,24 @@ MIDDLE_OPERATIONS = {
             "Sürme Bağlama",
         ],
     },
+    "KEMER": {
+        # TODO: KKT Yalnizca kanatlar icin calisacak. KASA KKT ye girmeyecek.
+        "KASA": [],
+        "KASA_KANAT": ["Kaynak Köşe Temizleme", "Kanat Hazırlık", "Kanat Bağlama"],
+        "KASA_KAYIT": ["Orta Kayıt"],
+        "KASA_KAYIT_KANAT": [
+            "Kaynak Köşe Temizleme",
+            "Orta Kayıt",
+            "Kanat Hazırlık",
+            "Kanat Bağlama",
+        ],
+        "KAYIT_KANAT": [
+            "Kaynak Köşe Temizleme",
+            "Orta Kayıt",
+            "Kanat Hazırlık",
+            "Kanat Bağlama",
+        ],
+    },
 }
 
 ACILI_ITEMS = ["AÇILI KASA", "AÇILI KANAT", "AÇILI ORTAKAYIT"]
