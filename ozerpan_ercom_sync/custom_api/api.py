@@ -704,6 +704,7 @@ def read_barcode(
     quality_data: Optional[Dict] = None,
     order_no: Optional[str] = None,
     poz_no: Optional[int] = None,
+    sanal_adet: Optional[str] = None,
 ) -> Dict[str, Any]:
     try:
         # Convert poz_no to int if it's provided as string
@@ -723,6 +724,7 @@ def read_barcode(
             quality_data=quality_data,
             order_no=order_no,
             poz_no=poz_no,
+            sanal_adet=sanal_adet,
         )
         return result
     except (QualityControlError, InvalidBarcodeError, BarcodeError) as e:

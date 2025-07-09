@@ -14,6 +14,7 @@ def get_tesdetay(
     operation: str,
     order_no: Optional[str] = None,
     poz_no: Optional[int] = None,
+    sanal_adet: Optional[str] = None,
 ) -> Any:
     filters = {"barkod": barcode}
     results = frappe.db.sql(
@@ -70,9 +71,8 @@ def get_tesdetay(
             return None
         if len(candidates) == 1:
             return candidates[0]
-        # If multiple with same order_no and poz_no, return minimum sanal_adet
-        # Convert sanal_adet to int for proper numeric comparison (not string comparison)
-        return min(candidates, key=lambda x: int(x.get("sanal_adet", float("inf"))))
+        # If multiple with same order_no and poz_no, return all options for client selection
+        return candidates
 
     # If order_no and poz_no are provided, filter by them first
     if order_no and poz_no:
@@ -89,9 +89,16 @@ def get_tesdetay(
             )
         ]
 
+        # If sanal_adet is also provided, filter by it for exact match
+        if sanal_adet is not None:
+            filtered_data = [
+                od for od in filtered_data if od.get("sanal_adet") == sanal_adet
+            ]
+
         if filtered_data:
-            # If multiple TesDetays with same order_no and poz_no, choose minimum sanal_adet
-            return select_tesdetay_from_same_group(filtered_data)
+            # If multiple TesDetays with same order_no and poz_no, return all options for client selection
+            result = select_tesdetay_from_same_group(filtered_data)
+            return result if not isinstance(result, list) else result
 
         # Check for completed ones with same order_no and poz_no
         completed_data = [
@@ -106,14 +113,26 @@ def get_tesdetay(
             )
         ]
 
-        if completed_data:
-            min_completed = select_tesdetay_from_same_group(completed_data)
-            min_completed["for_information_only"] = True
-            return min_completed
+        # If sanal_adet is also provided, filter completed data by it
+        if sanal_adet is not None:
+            completed_data = [
+                od for od in completed_data if od.get("sanal_adet") == sanal_adet
+            ]
 
-        raise InvalidBarcodeError(
-            f"No TesDetay found for barcode: {barcode} with order_no: {order_no} and poz_no: {poz_no}"
-        )
+        if completed_data:
+            completed_result = select_tesdetay_from_same_group(completed_data)
+            if isinstance(completed_result, list):
+                for item in completed_result:
+                    item["for_information_only"] = True
+                return completed_result
+            else:
+                completed_result["for_information_only"] = True
+                return completed_result
+
+        error_msg = f"No TesDetay found for barcode: {barcode} with order_no: {order_no} and poz_no: {poz_no}"
+        if sanal_adet is not None:
+            error_msg += f" and sanal_adet: {sanal_adet}"
+        raise InvalidBarcodeError(error_msg)
 
     # When order_no and poz_no are not provided, get all relevant TesDetays
     # Get both active and completed operations
@@ -147,25 +166,28 @@ def get_tesdetay(
     if not all_data:
         raise InvalidBarcodeError(f"No TesDetay found for barcode: {barcode}")
 
-    # Group by siparis_no and poz_no
+    # Group by siparis_no, poz_no, and sanal_adet
     grouped = {}
     for tesdetay in all_data:
-        key = (tesdetay.get("siparis_no"), tesdetay.get("poz_no"))
+        key = (
+            tesdetay.get("siparis_no"),
+            tesdetay.get("poz_no"),
+            tesdetay.get("sanal_adet"),
+        )
         if key not in grouped:
             grouped[key] = []
         grouped[key].append(tesdetay)
 
-    # If there's only one group, return the one with minimum sanal_adet
+    # If there's only one group, return the first item
     if len(grouped) == 1:
         group = list(grouped.values())[0]
-        return select_tesdetay_from_same_group(group)
+        return group[0]
 
     # If there are multiple groups, return all options for client selection
-    # But first, select minimum sanal_adet from each group
+    # Return one representative from each group (they should be identical within each group)
     options = []
     for group in grouped.values():
-        min_sanal_adet = select_tesdetay_from_same_group(group)
-        options.append(min_sanal_adet)
+        options.append(group[0])
 
     return options
 
