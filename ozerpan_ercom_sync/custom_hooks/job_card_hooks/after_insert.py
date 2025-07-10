@@ -222,6 +222,12 @@ def insert_job_card_to_operation_states_list(
     tesdetay_list = get_filtered_tesdetay_list(doc, order_no, poz_no)
     selected_tesdetays = select_target_tesdetay(tesdetay_list, doc.for_quantity)
 
+    if doc.operation == "Kaynak Köşe Temizleme":
+        print("Kaynak Köşe Temizleme")
+        selected_tesdetays = [
+            td for td in selected_tesdetays if td.get("model") != "KASA"
+        ]
+
     operation_states = create_operation_states(selected_tesdetays, doc)
 
     inserted_items = bulk_insert_child_rows(
