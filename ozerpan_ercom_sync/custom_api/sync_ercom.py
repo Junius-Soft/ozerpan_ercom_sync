@@ -237,6 +237,7 @@ def create_sales_order(data: dict, placeholder_item: str, logger) -> None:
 
     so = frappe.new_doc("Sales Order")
     so_data = {
+        "name": order_no,
         "custom_ercom_order_no": order_no,
         "transaction_date": data.get("SIPTARIHI"),
         "delivery_date": data.get("SEVKTARIHI"),
@@ -262,7 +263,9 @@ def create_sales_order(data: dict, placeholder_item: str, logger) -> None:
             "uom": "Nos",
         },
     )
+    print("\nDebug:", 1, "\n")
     so.save(ignore_permissions=True)
+    print("\nDebug:", 2, "\n")
     logger.info(f"Created sales order {order_no}")
 
 
