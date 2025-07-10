@@ -46,6 +46,7 @@ class MLYListProcessor(ExcelProcessorInterface):
 
             # Get poz data from ERCOM database
             poz_data = self._get_poz_data(file_info.order_no)
+            sorted_poz_data = sorted(poz_data, key=lambda poz: poz["POZNO"])
 
             # Get and update sales order
             sales_order = self._get_sales_order(file_info.order_no)
@@ -56,7 +57,7 @@ class MLYListProcessor(ExcelProcessorInterface):
             has_glasses = False
             for idx, sheet in enumerate(sheets):
                 try:
-                    result = self._process_sheet(sheet, poz_data[idx], file_info)
+                    result = self._process_sheet(sheet, sorted_poz_data[idx], file_info)
 
                     if result.get("status") == "error":
                         missing_items.extend(result.get("missing_items", []))
@@ -120,7 +121,7 @@ class MLYListProcessor(ExcelProcessorInterface):
         db_pool = DatabaseConnectionPool()
         try:
             query = """
-                SELECT SAYAC, SIPARISNO, GENISLIK, YUKSEKLIK, ADET, RENK,
+                SELECT SAYAC, POZNO, SIPARISNO, GENISLIK, YUKSEKLIK, ADET, RENK,
                 SERI, ACIKLAMA, NOTLAR, PozID, KASAMTUL, KAYITMTUL, KANATMTUL, CAMNET
                 FROM dbpoz WHERE SIPARISNO = %(order_no)s
             """
