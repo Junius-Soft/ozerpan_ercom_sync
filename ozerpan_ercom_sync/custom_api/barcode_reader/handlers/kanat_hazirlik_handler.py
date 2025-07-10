@@ -89,10 +89,11 @@ class KanatHazirlikHandler(OperationHandler):
         job_card: Any,
         employee: str,
         quality_data: Optional[QualityData] = None,
+        tesdetay_ref: Optional[str] = None,
     ) -> Dict[str, Any]:
         self.validate_operation(job_card)
 
-        current_barcode = self._get_current_barcode(job_card, barcode)
+        current_barcode = self._get_current_barcode(job_card, barcode, tesdetay_ref)
         related_barcodes = self.get_related_barcodes(job_card, current_barcode)
 
         if current_barcode.status == BarcodeStatus.COMPLETED:
@@ -108,7 +109,7 @@ class KanatHazirlikHandler(OperationHandler):
                 }
 
             next_job_card = uncompleted_job_cards[0]
-            next_barcode = self._get_current_barcode(next_job_card, barcode)
+            next_barcode = self._get_current_barcode(next_job_card, barcode, tesdetay_ref)
             next_related_barcodes = self.get_related_barcodes(next_job_card, next_barcode)
 
             if next_barcode.status == BarcodeStatus.PENDING:
@@ -286,8 +287,22 @@ class KanatHazirlikHandler(OperationHandler):
             BarcodeStatus.IN_PROGRESS.value,
         )
 
-    def _get_current_barcode(self, job_card: Any, barcode: str) -> BarcodeInfo:
-        b = next((b for b in job_card.custom_barcodes if b.barcode == barcode), None)
+    def _get_current_barcode(
+        self, job_card: Any, barcode: str, tesdetay_ref: Optional[str] = None
+    ) -> BarcodeInfo:
+        # If tesdetay_ref is provided, find the specific barcode entry
+        if tesdetay_ref:
+            b = next(
+                (
+                    b
+                    for b in job_card.custom_barcodes
+                    if b.barcode == barcode and b.tesdetay_ref == tesdetay_ref
+                ),
+                None,
+            )
+        else:
+            b = next((b for b in job_card.custom_barcodes if b.barcode == barcode), None)
+
         if not b:
             frappe.throw(_("Barcode not found in job card"))
 

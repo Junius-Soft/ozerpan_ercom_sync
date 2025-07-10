@@ -58,12 +58,56 @@ def collect():
 
 
 @frappe.whitelist()
-def revert_latest_barcode_operation(barcode: str, operation: str) -> None:
+def revert_latest_barcode_operation(
+    barcode: str,
+    operation: str,
+    order_no: Optional[str] = None,
+    poz_no: Optional[int] = None,
+    sanal_adet: Optional[str] = None,
+) -> Dict[str, Any]:
     print("\n\n-- Revert Barcode Operation -- (Start)")
 
-    tesdetay = get_tesdetay(barcode=barcode, operation=operation)
+    # Convert poz_no to int if it's provided as string
+    if poz_no is not None and isinstance(poz_no, str):
+        try:
+            poz_no = int(poz_no)
+        except ValueError:
+            return {
+                "status": "error",
+                "message": "Invalid poz_no parameter. Must be a valid integer.",
+            }
+
+    tesdetay = get_tesdetay(
+        barcode=barcode,
+        operation=operation,
+        order_no=order_no,
+        poz_no=poz_no,
+        sanal_adet=sanal_adet,
+    )
+
     if not tesdetay:
         raise InvalidBarcodeError("Invalid Barcode")
+
+    # Handle multiple options case
+    if isinstance(tesdetay, list):
+        return {
+            "status": "multiple_options",
+            "message": _(
+                "Multiple TesDetay entries found. Please specify order_no, poz_no, and sanal_adet to select the specific one to revert."
+            ),
+            "operation": operation,
+            "options": tesdetay,
+        }
+
+    # Handle information-only case (already completed)
+    if tesdetay.get("for_information_only"):
+        return {
+            "status": "error",
+            "message": _(
+                "This TesDetay is already completed for the specified operation and cannot be reverted."
+            ),
+            "tesdetay_info": tesdetay,
+        }
 
     job_card = get_job_card(
         barcode=barcode,
@@ -101,8 +145,15 @@ def revert_latest_barcode_operation(barcode: str, operation: str) -> None:
     save_with_retry(job_card)
     print("\n\n-- Revert Barcode Operation -- (End)")
     return {
+        "status": "success",
+        "message": _("Barcode operation reverted successfully"),
         "tesdetays": tesdetay_refs,
         "operation": operation,
+        "reverted_group": {
+            "siparis_no": tesdetay.get("siparis_no"),
+            "poz_no": tesdetay.get("poz_no"),
+            "sanal_adet": tesdetay.get("sanal_adet"),
+        },
     }
 
 
@@ -692,6 +743,8 @@ class BarcodeRequest(TypedDict):
     employee: str
     operation: str
     quality_data: Optional[Dict[str, Any]]
+    order_no: Optional[str]
+    poz_no: Optional[int]
 
 
 @frappe.whitelist()
@@ -700,14 +753,29 @@ def read_barcode(
     employee: str,
     operation: str,
     quality_data: Optional[Dict] = None,
+    order_no: Optional[str] = None,
+    poz_no: Optional[int] = None,
+    sanal_adet: Optional[str] = None,
 ) -> Dict[str, Any]:
     try:
+        # Convert poz_no to int if it's provided as string
+        if poz_no is not None and isinstance(poz_no, str):
+            try:
+                poz_no = int(poz_no)
+            except ValueError:
+                return _create_error_response(
+                    "Invalid poz_no parameter. Must be a valid integer."
+                )
+
         reader = BarcodeReader()
         result = reader.read_barcode(
             barcode=barcode,
             employee=employee,
             operation=operation,
             quality_data=quality_data,
+            order_no=order_no,
+            poz_no=poz_no,
+            sanal_adet=sanal_adet,
         )
         return result
     except (QualityControlError, InvalidBarcodeError, BarcodeError) as e:

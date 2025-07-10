@@ -9,7 +9,13 @@ from ..constants import BarcodeStatus
 from ..models.quality_data import QualityData
 
 
-def get_tesdetay(barcode: str, operation: str) -> Any:
+def get_tesdetay(
+    barcode: str,
+    operation: str,
+    order_no: Optional[str] = None,
+    poz_no: Optional[int] = None,
+    sanal_adet: Optional[str] = None,
+) -> Any:
     filters = {"barkod": barcode}
     results = frappe.db.sql(
         """
@@ -58,7 +64,79 @@ def get_tesdetay(barcode: str, operation: str) -> Any:
                 }
             )
 
-    filtered_data = [
+    # Helper function to select TesDetay based on business logic
+    def select_tesdetay_from_same_group(candidates):
+        """Select TesDetay from candidates with same order_no and poz_no"""
+        if not candidates:
+            return None
+        if len(candidates) == 1:
+            return candidates[0]
+        # If multiple with same order_no and poz_no, return all options for client selection
+        return candidates
+
+    # If order_no and poz_no are provided, filter by them first
+    if order_no and poz_no:
+        # Filter by order_no and poz_no, then by operation status
+        filtered_data = [
+            od
+            for od in organized_data
+            if od.get("siparis_no") == order_no
+            and od.get("poz_no") == poz_no
+            and od.get("operation_states")
+            and any(
+                os["operation"] == operation and os["status"] != "Completed"
+                for os in od.get("operation_states")
+            )
+        ]
+
+        # If sanal_adet is also provided, filter by it for exact match
+        if sanal_adet is not None:
+            filtered_data = [
+                od for od in filtered_data if od.get("sanal_adet") == sanal_adet
+            ]
+
+        if filtered_data:
+            # If multiple TesDetays with same order_no and poz_no, return all options for client selection
+            result = select_tesdetay_from_same_group(filtered_data)
+            return result if not isinstance(result, list) else result
+
+        # Check for completed ones with same order_no and poz_no
+        completed_data = [
+            od
+            for od in organized_data
+            if od.get("siparis_no") == order_no
+            and od.get("poz_no") == poz_no
+            and od.get("operation_states")
+            and any(
+                os["operation"] == operation and os["status"] == "Completed"
+                for os in od.get("operation_states")
+            )
+        ]
+
+        # If sanal_adet is also provided, filter completed data by it
+        if sanal_adet is not None:
+            completed_data = [
+                od for od in completed_data if od.get("sanal_adet") == sanal_adet
+            ]
+
+        if completed_data:
+            completed_result = select_tesdetay_from_same_group(completed_data)
+            if isinstance(completed_result, list):
+                for item in completed_result:
+                    item["for_information_only"] = True
+                return completed_result
+            else:
+                completed_result["for_information_only"] = True
+                return completed_result
+
+        error_msg = f"No TesDetay found for barcode: {barcode} with order_no: {order_no} and poz_no: {poz_no}"
+        if sanal_adet is not None:
+            error_msg += f" and sanal_adet: {sanal_adet}"
+        raise InvalidBarcodeError(error_msg)
+
+    # When order_no and poz_no are not provided, get all relevant TesDetays
+    # Get both active and completed operations
+    active_data = [
         od
         for od in organized_data
         if od.get("operation_states")
@@ -67,12 +145,7 @@ def get_tesdetay(barcode: str, operation: str) -> Any:
             for os in od.get("operation_states")
         )
     ]
-    if filtered_data:
-        min_poz_tesdetay = min(filtered_data, key=lambda x: x.get("poz_no", float("inf")))
-        filtered_data = [min_poz_tesdetay]
-        return min_poz_tesdetay
-    
-    # If no active barcodes found, check for completed ones
+
     completed_data = [
         od
         for od in organized_data
@@ -82,13 +155,41 @@ def get_tesdetay(barcode: str, operation: str) -> Any:
             for os in od.get("operation_states")
         )
     ]
-    if completed_data:
-        min_completed_tesdetay = min(completed_data, key=lambda x: x.get("poz_no", float("inf")))
-        min_completed_tesdetay["for_information_only"] = True  # Add flag to indicate this is just for information
-        return min_completed_tesdetay
-    
-    # If no active or completed barcodes found, raise error
-    raise InvalidBarcodeError(f"No TesDetay found for barcode: {barcode}")
+
+    # Mark completed data
+    for item in completed_data:
+        item["for_information_only"] = True
+
+    # Combine all data
+    all_data = active_data + completed_data
+
+    if not all_data:
+        raise InvalidBarcodeError(f"No TesDetay found for barcode: {barcode}")
+
+    # Group by siparis_no, poz_no, and sanal_adet
+    grouped = {}
+    for tesdetay in all_data:
+        key = (
+            tesdetay.get("siparis_no"),
+            tesdetay.get("poz_no"),
+            tesdetay.get("sanal_adet"),
+        )
+        if key not in grouped:
+            grouped[key] = []
+        grouped[key].append(tesdetay)
+
+    # If there's only one group, return the first item
+    if len(grouped) == 1:
+        group = list(grouped.values())[0]
+        return group[0]
+
+    # If there are multiple groups, return all options for client selection
+    # Return one representative from each group (they should be identical within each group)
+    options = []
+    for group in grouped.values():
+        options.append(group[0])
+
+    return options
 
 
 def update_operation_status(
