@@ -219,22 +219,14 @@ def insert_job_card_to_operation_states_list(
     order_no: str,
     poz_no: str,
 ) -> None:
-    print("\nDebug:", "Job Operation:", doc.operation, "\n")
     tesdetay_list = get_filtered_tesdetay_list(doc, order_no, poz_no)
     selected_tesdetays = select_target_tesdetay(tesdetay_list, doc.for_quantity)
-    print("\nDebug:", "Selected TesDetay:", "\n")
-    for td in selected_tesdetays:
-        print(td)
 
     if doc.operation == "Kaynak Köşe Temizleme":
         print("Kaynak Köşe Temizleme")
         selected_tesdetays = [
             td for td in selected_tesdetays if td.get("model") != "KASA"
         ]
-
-    print("\nDebug:", "Filtered TesDetays:", "\n")
-    for t in selected_tesdetays:
-        print(t)
 
     operation_states = create_operation_states(selected_tesdetays, doc)
 

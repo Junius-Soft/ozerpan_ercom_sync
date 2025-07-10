@@ -263,9 +263,7 @@ def create_sales_order(data: dict, placeholder_item: str, logger) -> None:
             "uom": "Nos",
         },
     )
-    print("\nDebug:", 1, "\n")
     so.save(ignore_permissions=True)
-    print("\nDebug:", 2, "\n")
     logger.info(f"Created sales order {order_no}")
 
 
