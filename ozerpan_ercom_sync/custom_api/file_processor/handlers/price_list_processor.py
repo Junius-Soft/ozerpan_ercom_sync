@@ -17,6 +17,8 @@ from ..utils.price_list_utils import (
     calculate_glass_item_price,
     calculate_pvc_item_price,
     calculate_total_discount,
+    create_or_update_fiyat2_doc,
+    extract_order_details,
     extract_price_details,
     get_sales_order,
     preprocess_excel_data,
@@ -71,11 +73,17 @@ class PriceListProcessor(ExcelProcessorInterface):
 
             # Check if MLY file has been uploaded first
             if not sales_order.custom_mly_list_uploaded:
-                print("\nDebug:", "Mly List Not Uploaded", "\n")
                 raise ValueError(_("Please upload MLY file first."))
 
-            # Extract price details and initialize tracking variables
+            # Extract poz and price details and initialize tracking variables
+            order_details = extract_order_details(records)
             price_details = extract_price_details(records)
+            fiyat2_doc = create_or_update_fiyat2_doc(
+                order_no=file_info.order_no,
+                order_details=order_details,
+                price_details=price_details,
+                records=records,
+            )
             price_list: Dict[str, float] = {}
             updated_count: int = 0
 
