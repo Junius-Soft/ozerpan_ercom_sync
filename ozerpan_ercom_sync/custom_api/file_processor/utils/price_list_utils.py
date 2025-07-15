@@ -115,6 +115,85 @@ def extract_price_details(records: List[Dict[str, Any]]) -> Dict[str, float]:
     return price_details
 
 
+def extract_order_details(records: List[Dict[str, Any]]) -> Dict[str, Any]:
+    record = records[0]
+    delivery_date = f"{int(record.get('SEVK_TAR_GUN'))}-{int(record.get('SEVK_TAR_AY'))}-{int(record.get('SEVK_TAR_YIL'))}"
+    delivery_date = frappe.utils.getdate(delivery_date)
+
+    order_details: Dict[str, Any] = {
+        "customer": record.get("MUSTERI_CARI_UNVANI"),
+        "authorized_staff": record.get("YETKILI"),
+        "date": record.get("TARIH"),
+        "delivery_date": delivery_date,
+    }
+    poz_details: Dict[str, int] = {}
+    for record in records:
+        key = record.get("SATIS_NO")
+        value = record.get("MUSTERI_CARI_UNVANI")
+        if key == "Toplam Poz":
+            poz_details.update({"total_poz": value})
+        if key == "Toplam Doğrama":
+            poz_details.update({"total_cutting": value})
+
+    return {**order_details, **poz_details}
+
+
+def create_or_update_fiyat2_doc(
+    order_no: str,
+    records: List[Dict[str, Any]],
+    order_details: Dict[str, Any],
+    price_details: Dict[str, float],
+):
+    try:
+        fiyat2_doc = frappe.get_doc("Fiyat2 List", order_no)
+    except frappe.DoesNotExistError:
+        fiyat2_doc = frappe.new_doc("Fiyat2 List")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+    items = []
+
+    for r in records:
+        if r.get("SATIS_NO") != order_no:
+            continue
+
+        items.append(
+            {
+                "stock_code": r.get("STOK_KODU").lstrip("#"),
+                "stock_name": r.get("STOK_ADI"),
+                "qty": r.get("MIKTAR"),
+                "uom": r.get("BIRIM"),
+                "unit_price": r.get("BIRIM_FIYAT"),
+                "discount": r.get("ISKONTO"),
+                "kdv_rate": r.get("KDV_ORANI"),
+                "price": r.get("TUTAR"),
+            }
+        )
+
+    fiyat2_doc.update(
+        {
+            "order_no": order_no,
+            "total_poz": order_details.get("total_poz"),
+            "total_cutting": order_details.get("total_cutting"),
+            "customer": order_details.get("customer"),
+            "authorized_staff": order_details.get("authorized_staff"),
+            "date": order_details.get("date"),
+            "delivery_date": order_details.get("delivery_date"),
+            "assembly": price_details.get("montaj"),
+            "discount1": abs(price_details.get("i̇skonto_1")),
+            "discount2": price_details.get("i̇skonto_2"),
+            "kdv_total": price_details.get("kdv_toplamı"),
+            "subtotal": price_details.get("ara_toplam"),
+            "grand_total": price_details.get("genel_toplam"),
+        }
+    )
+
+    fiyat2_doc.set("items", items)
+    fiyat2_doc.save(ignore_permissions=True)
+
+    return fiyat2_doc
+
+
 def calculate_glass_item_price(
     item_code: str, item_qty: float, records: List[Dict[str, Any]]
 ) -> Optional[float]:

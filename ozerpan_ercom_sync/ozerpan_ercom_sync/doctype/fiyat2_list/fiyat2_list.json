@@ -1,0 +1,147 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:order_no",
+ "creation": "2025-07-15 17:19:07.845762",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "order_no",
+  "total_poz",
+  "total_cutting",
+  "column_break_dlps",
+  "customer",
+  "authorized_staff",
+  "date",
+  "delivery_date",
+  "section_break_wmjr",
+  "assembly",
+  "discount1",
+  "discount2",
+  "kdv_total",
+  "column_break_faqj",
+  "subtotal",
+  "grand_total",
+  "section_break_liqk",
+  "items"
+ ],
+ "fields": [
+  {
+   "fieldname": "order_no",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Order No",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "total_poz",
+   "fieldtype": "Int",
+   "label": "Total Poz"
+  },
+  {
+   "fieldname": "total_cutting",
+   "fieldtype": "Int",
+   "label": "Total Cutting"
+  },
+  {
+   "fieldname": "subtotal",
+   "fieldtype": "Float",
+   "label": "Subtotal"
+  },
+  {
+   "fieldname": "grand_total",
+   "fieldtype": "Float",
+   "label": "Grand Total"
+  },
+  {
+   "fieldname": "discount1",
+   "fieldtype": "Float",
+   "label": "Discount1"
+  },
+  {
+   "fieldname": "discount2",
+   "fieldtype": "Float",
+   "label": "Discount2"
+  },
+  {
+   "fieldname": "kdv_total",
+   "fieldtype": "Float",
+   "label": "KDV Total"
+  },
+  {
+   "fieldname": "assembly",
+   "fieldtype": "Float",
+   "label": "Assembly"
+  },
+  {
+   "fieldname": "column_break_dlps",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "items",
+   "fieldtype": "Table",
+   "label": "Items",
+   "options": "Fiyat2 Item"
+  },
+  {
+   "fieldname": "customer",
+   "fieldtype": "Data",
+   "label": "Customer"
+  },
+  {
+   "fieldname": "authorized_staff",
+   "fieldtype": "Data",
+   "label": "Authorized Staff"
+  },
+  {
+   "fieldname": "date",
+   "fieldtype": "Date",
+   "label": "Date"
+  },
+  {
+   "fieldname": "delivery_date",
+   "fieldtype": "Date",
+   "label": "Delivery Date"
+  },
+  {
+   "fieldname": "section_break_wmjr",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_faqj",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_liqk",
+   "fieldtype": "Section Break"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-07-15 22:49:39.403404",
+ "modified_by": "Administrator",
+ "module": "Ozerpan Ercom Sync",
+ "name": "Fiyat2 List",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

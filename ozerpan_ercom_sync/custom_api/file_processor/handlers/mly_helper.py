@@ -36,6 +36,8 @@ MIDDLE_OPERATIONS = {
             "Kanat Bağlama",
         ],
         "KANAT": ["Sürme Hazırlık", "Kanat Hazırlık"],
+        # TODO: Operations for KAYIT should be added
+        "KAYIT": [],
     },
     "SURME": {
         "KASA_KAYIT_KANAT": [
@@ -96,6 +98,7 @@ def define_operation_type(profile_group):
 
 
 def get_middle_operations(profile_group):
+    print("\n[DEBUG]:", "Profile Group:", profile_group, "\n")
     operation_type = define_operation_type(profile_group)
     profiles = []
     for profile in profile_group:
