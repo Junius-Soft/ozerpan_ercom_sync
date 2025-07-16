@@ -37,7 +37,18 @@ MIDDLE_OPERATIONS = {
         ],
         "KANAT": ["Sürme Hazırlık", "Kanat Hazırlık"],
         # TODO: Operations for KAYIT should be added
-        "KAYIT": [],
+        "KAYIT": [
+            "Kaynak Köşe Temizleme",
+            "Orta Kayıt",
+            "Kanat Hazırlık",
+            "Kanat Bağlama",
+        ],
+        "KAYIT_KANAT": [
+            "Kaynak Köşe Temizleme",
+            "Orta Kayıt",
+            "Kanat Hazırlık",
+            "Kanat Bağlama",
+        ],
     },
     "SURME": {
         "KASA_KAYIT_KANAT": [
