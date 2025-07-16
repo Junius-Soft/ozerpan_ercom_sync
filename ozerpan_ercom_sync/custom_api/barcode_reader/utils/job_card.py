@@ -1,6 +1,7 @@
 from typing import Any, Optional
 
 import frappe
+from frappe import _
 from frappe.exceptions import TimestampMismatchError
 
 
@@ -139,6 +140,15 @@ def complete_job_bulk(job_card_names: list, qty: int, employee: str) -> None:
         # Update time logs for all job cards in bulk
         for job_card_name in job_card_names:
             # Find the open time log (without to_time) for each job card
+
+            for_quantity, total_completed_qty = frappe.db.get_value(
+                "Job Card",
+                job_card_name,
+                ["for_quantity", "total_completed_qty"],
+            )
+            if qty + total_completed_qty > for_quantity:
+                frappe.throw(_("Quantity should be less than Qty To Manufacture"))
+
             open_time_logs = frappe.db.sql(
                 """
                 SELECT name, from_time FROM `tabJob Card Time Log`
