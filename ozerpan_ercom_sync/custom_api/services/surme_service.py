@@ -2,12 +2,10 @@ from typing import Any, Dict, List, Set
 
 import frappe
 from frappe import _
-from frappe.utils.caching import redis_cache
 
 from ..barcode_reader.utils.job_card import format_job_card_response
 
 
-@redis_cache
 def fetch_surme_orders(
     operation_type: str,
     order_no: str = None,
@@ -44,7 +42,6 @@ def get_custom_barcodes(job_card_name: str) -> List[str]:
     ]
 
 
-@redis_cache
 def get_barcode_details(barcode: str) -> Dict[str, Any]:
     """Get and cache barcode details."""
     td = frappe.get_doc("TesDetay", {"barkod": barcode})
@@ -70,7 +67,6 @@ def get_barcode_details(barcode: str) -> Dict[str, Any]:
     } | {"profil": pt.description}
 
 
-@redis_cache
 def get_item_details(item_code: str) -> Dict[str, Any]:
     """Get and cache item details."""
     item = frappe.get_doc("Item", {"item_code": item_code})
