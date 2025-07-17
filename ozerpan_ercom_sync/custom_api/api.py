@@ -1,4 +1,5 @@
 import os
+import shutil
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, TextIO, TypedDict
 
@@ -379,6 +380,73 @@ def get_surme_poz_by_order_no():
 ###########################
 
 
+def move_pdf_files(to_process_dir: str) -> Dict[str, Any]:
+    """
+    Move PDF files from to_process directory to public/files/surme_pdf/
+
+    Args:
+        to_process_dir: The directory containing PDF files to move
+
+    Returns:
+        Dict containing status and results of the PDF moving process
+    """
+    print("\n\n-- Moving PDF Files -- (START)\n")
+
+    dest_dir = config["pdf_transfer_dest_dir"]
+    site_path = frappe.get_site_path()
+    pdf_dest_path = site_path + dest_dir
+
+    # Ensure destination directory exists
+    os.makedirs(pdf_dest_path, exist_ok=True)
+
+    moved_files = []
+    errors = []
+
+    try:
+        # Find all PDF files in to_process directory
+        for filename in os.listdir(to_process_dir):
+            if filename.upper().endswith(".PDF"):
+                src_path = os.path.join(to_process_dir, filename)
+                dest_path = os.path.join(pdf_dest_path, filename)
+
+                try:
+                    # Move the PDF file
+                    shutil.move(src_path, dest_path)
+                    moved_files.append(filename)
+                    print(f"Moved PDF file: {filename}")
+                except Exception:
+                    # Try copy and delete if move fails
+                    try:
+                        shutil.copy2(src_path, dest_path)
+                        os.remove(src_path)
+                        moved_files.append(filename)
+                        print(f"Moved PDF file (via copy): {filename}")
+                    except Exception as e2:
+                        error_msg = f"Error moving {filename}: {str(e2)}"
+                        errors.append(error_msg)
+                        print(error_msg)
+
+    except Exception as e:
+        error_msg = f"Error accessing to_process directory: {str(e)}"
+        errors.append(error_msg)
+        print(error_msg)
+
+    print(f"\nMoved {len(moved_files)} PDF files to {pdf_dest_path}")
+    print("\n-- Moving PDF Files -- (END)\n\n")
+
+    if errors:
+        return {
+            "status": "partial_success" if moved_files else "error",
+            "files_moved": moved_files,
+            "errors": errors,
+        }
+    else:
+        return {
+            "status": "success",
+            "files_moved": moved_files,
+        }
+
+
 @frappe.whitelist()
 def process_file() -> dict[str, Any]:
     print("\n\n-- Process File -- (START)")
@@ -559,12 +627,15 @@ def process_file() -> dict[str, Any]:
     # Close database connection to avoid connection leaks
     _commit_with_retry()
 
+    pdf_move_result = move_pdf_files(dirs.to_process)
+
     img_collector = ImgCollector()
     img_collector_result = img_collector.collect()
 
     return {
         "file_processing_result": processing_results,
         "img_collector_result": img_collector_result,
+        "pdf_move_result": pdf_move_result,
     }
 
 
