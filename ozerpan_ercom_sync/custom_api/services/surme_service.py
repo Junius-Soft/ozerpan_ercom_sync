@@ -15,7 +15,10 @@ def fetch_surme_orders(
         frappe.throw(_("Operation Type is required."))
         return
 
-    filters = {"operation": ["like", f"%{operation_type}%"]}
+    # filters = {"operation": ["like", f"%{operation_type}%"]}
+    # filters = {"operation": operation_type}
+    filters = {"operation": operation_type, "status": ["!=", "Completed"]}
+
     if order_no:
         filters["production_item"] = ["like", f"%{order_no}%"]
 
@@ -25,7 +28,6 @@ def fetch_surme_orders(
         fields=["production_item", "name"],
         page_length=20,
     )
-
     return {jc["production_item"].split("-")[0] for jc in job_cards}
 
 
@@ -113,6 +115,8 @@ def fetch_surme_poz_details(
         filters={
             "operation": ["like", f"%{operation_type}%"],
             "production_item": ["like", f"{order_no}%"],
+            "status": ["!=", "Completed"],
+
         },
         fields=["name", "production_item", "work_order"],
         page_length=20,
@@ -161,7 +165,23 @@ def fetch_surme_poz_details(
         jc_doc = format_job_card_response(frappe.get_doc("Job Card", jc.name))
         job_cards_response.append(jc_doc)
 
+    poz_nolar = list(order_poz_details.keys())
+    job_cards = frappe.get_all(
+        "Job Card",
+        filters={"production_item": ["in", poz_nolar]},
+        fields=["*"]
+    )
+    job_cards_by_poz = {jc["production_item"]: jc for jc in job_cards}
+
+    for poz_no, details in order_poz_details.items():
+        jobcard = frappe.db.get_value(
+            "Job Card",
+            {"production_item": poz_no, "operation": operation_type},
+            "*",
+            as_dict=True
+        )
+        details["job_card"] = jobcard
+
     return {
         "order_poz_details": order_poz_details,
-        "job_cards": job_cards_response,
     }
