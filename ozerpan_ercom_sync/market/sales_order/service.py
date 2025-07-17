@@ -22,12 +22,10 @@ def create_market_sales_order(
     #     order_no = generate_market_order_no()
 
     order_no = generate_market_order_no(
-        order_type=market_order_data.get("order_type"),
         ercom_sales_order=ercom_sales_order.get("name")
         if ercom_sales_order is not None
         else None,
     )
-    print("\n\n\nOrder No:", order_no, "\n\n\n")
 
     customer_name = customer.get("customer_name")
     delivery_date = frappe.utils.add_to_date(
@@ -79,9 +77,7 @@ def create_market_sales_order(
         frappe.db.rollback()
         return new_bom_result
 
-    print("\nDebug:", 1, "\n")
     new_sales_order.save(ignore_permissions=True)
-    print("\nDebug:", 2, "\n")
 
     print("\n-- Create Market Sales Order -- END\n\n")
     return {"status": "success"}
@@ -101,9 +97,7 @@ def _create_market_bom(item_code: str, poz_data: dict, missing_items: list):
 
     items_table = []
 
-    # print("Poz:", type(poz_data.get("production_materials")))
     for group_name, materials in poz_data.get("production_materials").items():
-        print(f"{group_name}: {materials}")
         for m in materials:
             if not frappe.db.exists("Item", m.get("stock_code")):
                 missing_items.append(
@@ -125,8 +119,6 @@ def _create_market_bom(item_code: str, poz_data: dict, missing_items: list):
                         # "rate": 0,
                     }
                 )
-
-    print("Items:", items_table)
 
     if len(missing_items) > 0:
         return {
@@ -168,15 +160,14 @@ def _create_market_item(item_code: str, poz_data: dict[str, any]):
     return item
 
 
-def generate_market_order_no(order_type: str, ercom_sales_order: str | None = None):
+def generate_market_order_no(ercom_sales_order: str | None = None):
     """
     Generate a unique market order number in the format MM000001.
     Market orders start with "MM" followed by 6 digits.
     """
-    order_suffix = order_type[0].upper()
 
     if ercom_sales_order:
-        return f"M{ercom_sales_order}-{order_suffix}"
+        return f"M{ercom_sales_order}"
 
     # Query for existing market orders (those starting with "MM")
     existing_orders = frappe.db.sql(
@@ -189,6 +180,9 @@ def generate_market_order_no(order_type: str, ercom_sales_order: str | None = No
         """,
         as_dict=True,
     )
+
+    print("\n[DEBUG]:", "Existing Orders:", "\n")
+    print(existing_orders)
 
     if existing_orders:
         # Extract the numeric part from the latest order
@@ -205,12 +199,11 @@ def generate_market_order_no(order_type: str, ercom_sales_order: str | None = No
         next_number = 1
 
     # Format the number with leading zeros (6 digits total)
-    return f"MM{next_number:06d}-{order_suffix}"
+    return f"MM{next_number:06d}"
 
 
 def _add_operations_to_bom(bom: any, product_type: str):
     operation_name = MarketOrderOperation[product_type].value
-    print("OOperation:", type(operation_name))
     operation_items = []
 
     try:
