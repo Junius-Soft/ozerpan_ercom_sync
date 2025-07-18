@@ -1,5 +1,7 @@
 from typing import Dict, List
 
+import frappe
+
 from ozerpan_ercom_sync.utils import bulk_insert_child_rows
 
 from .helpers import get_glass_list, get_tesdetay_list
@@ -222,11 +224,45 @@ def insert_job_card_to_operation_states_list(
     tesdetay_list = get_filtered_tesdetay_list(doc, order_no, poz_no)
     selected_tesdetays = select_target_tesdetay(tesdetay_list, doc.for_quantity)
 
+    # Check if there is "acili" or "kemereli" main profile,
+    # if so filter "KASA" tesdetays out for "Kaynak Köşe Temizleme"
     if doc.operation == "Kaynak Köşe Temizleme":
-        print("Kaynak Köşe Temizleme")
-        selected_tesdetays = [
-            td for td in selected_tesdetays if td.get("model") != "KASA"
-        ]
+        filters = {"bom_no": doc.bom_no, "parent_group": "Ana Profil"}
+
+        main_profiles = frappe.db.sql(
+            """
+            SELECT bi.item_code
+            FROM `tabBOM Item` bi
+            INNER JOIN `tabItem` item ON bi.item_code = item.item_code
+            INNER JOIN `tabItem Group` item_group ON item.item_group = item_group.name
+            WHERE bi.parent=%(bom_no)s
+            AND item_group.parent_item_group=%(parent_group)s
+            """,
+            filters,
+            as_dict=1,
+        )
+
+        main_profile_codes = [p.item_code for p in main_profiles]
+        placeholders = ", ".join(["%s"] * len(main_profile_codes))
+        query = f"""
+        SELECT pt.name, pt.group
+        FROM `tabProfile Type` pt
+        WHERE pt.name IN ({placeholders})
+        """
+        profile_types = frappe.db.sql(query, tuple(main_profile_codes), as_dict=True)
+        operation_type = "normal"
+
+        for pt in profile_types:
+            group = pt.get("group")
+            if "AÇILI" in group:
+                operation_type = "acili"
+            elif "KEMERLİ" in group:
+                operation_type = "kemerli"
+
+        if operation_type in ["acili", "kemerli"]:
+            selected_tesdetays = [
+                td for td in selected_tesdetays if td.get("model") != "KASA"
+            ]
 
     operation_states = create_operation_states(selected_tesdetays, doc)
 
@@ -247,7 +283,6 @@ def insert_job_card_to_operation_states_list(
             }
         )
 
-    # barcodes = sorted(barcodes, key=lambda x: int(x["sanal_adet"]))
     doc.set("custom_barcodes", barcodes)
 
 
