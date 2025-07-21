@@ -157,9 +157,17 @@ def create_or_update_fiyat2_doc(
         if r.get("SATIS_NO") != order_no:
             continue
 
+        stock_code = r.get("STOK_KODU").lstrip("#")
+
+        if not frappe.db.exists("Item", stock_code):
+            if stock_code.upper().startswith("AKS"):
+                stock_code = f"Q{stock_code}"
+            else:
+                raise ValueError(_("Item [{0}] not found").format(stock_code))
+
         items.append(
             {
-                "stock_code": r.get("STOK_KODU").lstrip("#"),
+                "stock_code": stock_code,
                 "stock_name": r.get("STOK_ADI"),
                 "qty": r.get("MIKTAR"),
                 "uom": r.get("BIRIM"),
