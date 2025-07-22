@@ -74,6 +74,7 @@ class OPTProcessor(ExcelProcessorInterface):
             # Clean and prepare dataframe
             df.columns = df.iloc[1].str.strip()
             df = df.iloc[2:].reset_index(drop=True)
+            df = df.dropna(subset=["Stok Kodu"]).reset_index(drop=True)
 
             # Validate cleaned dataframe
             if df.empty:
