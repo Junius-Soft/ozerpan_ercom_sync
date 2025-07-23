@@ -19,6 +19,7 @@
     "parent": "Order Approval",
     "parentfield": "states",
     "parenttype": "Workflow",
+    "send_email": 0,
     "state": "Yeni Sipariş",
     "update_field": null,
     "update_value": null,
@@ -34,6 +35,7 @@
     "parent": "Order Approval",
     "parentfield": "states",
     "parenttype": "Workflow",
+    "send_email": 0,
     "state": "Düzenlenecek",
     "update_field": null,
     "update_value": null,
@@ -49,6 +51,7 @@
     "parent": "Order Approval",
     "parentfield": "states",
     "parenttype": "Workflow",
+    "send_email": 0,
     "state": "Muhasebe Onay Bekleniyor",
     "update_field": null,
     "update_value": null,
@@ -64,6 +67,7 @@
     "parent": "Order Approval",
     "parentfield": "states",
     "parenttype": "Workflow",
+    "send_email": 0,
     "state": "İptal Edildi",
     "update_field": null,
     "update_value": null,
@@ -79,6 +83,7 @@
     "parent": "Order Approval",
     "parentfield": "states",
     "parenttype": "Workflow",
+    "send_email": 0,
     "state": "Onaylandı",
     "update_field": null,
     "update_value": null,
@@ -95,6 +100,7 @@
     "parent": "Order Approval",
     "parentfield": "transitions",
     "parenttype": "Workflow",
+    "send_email_to_creator": 0,
     "state": "Yeni Sipariş",
     "workflow_builder_id": null
    },
@@ -107,6 +113,7 @@
     "parent": "Order Approval",
     "parentfield": "transitions",
     "parenttype": "Workflow",
+    "send_email_to_creator": 0,
     "state": "Muhasebe Onay Bekleniyor",
     "workflow_builder_id": null
    },
@@ -119,6 +126,7 @@
     "parent": "Order Approval",
     "parentfield": "transitions",
     "parenttype": "Workflow",
+    "send_email_to_creator": 0,
     "state": "Düzenlenecek",
     "workflow_builder_id": null
    },
@@ -131,6 +139,7 @@
     "parent": "Order Approval",
     "parentfield": "transitions",
     "parenttype": "Workflow",
+    "send_email_to_creator": 0,
     "state": "Muhasebe Onay Bekleniyor",
     "workflow_builder_id": null
    }

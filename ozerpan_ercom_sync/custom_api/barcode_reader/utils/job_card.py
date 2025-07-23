@@ -54,6 +54,7 @@ def submit_job_card(job_card: Any) -> None:
         job_card.submit()
     except Exception as e:
         frappe.log_error(f"Error submitting job card {job_card.name}: {str(e)}")
+        frappe.throw(f"Error occured: {str(e)}")
 
 
 def is_job_fully_complete(job_card: Any) -> bool:
