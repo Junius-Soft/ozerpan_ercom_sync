@@ -858,8 +858,10 @@ def read_barcode(
         )
         return result
     except (QualityControlError, InvalidBarcodeError, BarcodeError) as e:
+        frappe.db.rollback()
         return _handle_barcode_error(e)
     except Exception as e:
+        frappe.db.rollback()
         return _handle_system_error(e)
 
 

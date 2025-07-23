@@ -171,6 +171,7 @@ doc_events = {
     "Job Card": {
         "after_insert": "ozerpan_ercom_sync.custom_hooks.job_card_hooks.after_insert.after_insert",
         "on_trash": "ozerpan_ercom_sync.custom_hooks.job_card_hooks.on_trash.on_trash",
+        "on_submit": "ozerpan_ercom_sync.custom_hooks.job_card_hooks.on_submit.on_submit",
     },
     "Production Plan": {
         "on_update": "ozerpan_ercom_sync.custom_hooks.production_plan_hooks.on_update.on_update",
