@@ -173,6 +173,9 @@ doc_events = {
         "on_trash": "ozerpan_ercom_sync.custom_hooks.job_card_hooks.on_trash.on_trash",
         "on_submit": "ozerpan_ercom_sync.custom_hooks.job_card_hooks.on_submit.on_submit",
     },
+    "Work Order": {
+        "before_submit": "ozerpan_ercom_sync.custom_hooks.work_order_hooks.before_submit.before_submit"
+    },
     "Production Plan": {
         "on_update": "ozerpan_ercom_sync.custom_hooks.production_plan_hooks.on_update.on_update",
         "on_submit": "ozerpan_ercom_sync.custom_hooks.production_plan_hooks.on_submit.on_submit",

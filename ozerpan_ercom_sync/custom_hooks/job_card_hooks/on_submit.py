@@ -4,8 +4,22 @@ from erpnext.manufacturing.doctype.work_order.work_order import make_stock_entry
 
 def on_submit(doc, method):
     print("\n\n-- Ozerpan Ercom Sync | Job Card - On Submit -- [START]\n")
-    if doc.operation != "Kalite":
+
+    if doc.operation not in ["Kalite", "Cam"]:
         return
+
+    if doc.operation == "Cam":
+        glass_job_cards = frappe.get_all(
+            "Job Card",
+            filters={
+                "work_order": doc.work_order,
+                "production_item": doc.production_item,
+            },
+            fields=["name", "status"],
+        )
+
+        if not all(jc.status == "Completed" for jc in glass_job_cards):
+            return
 
     sales_order_name = frappe.db.get_value("Work Order", doc.work_order, "sales_order")
 
@@ -34,5 +48,6 @@ def on_submit(doc, method):
         se_doc.submit()
     except Exception as e:
         print(f"An error occurred: {e}")
+        raise Exception(e)
 
     print("\n-- Ozerpan Ercom Sync | Job Card - On Submit -- [END]\n\n")
