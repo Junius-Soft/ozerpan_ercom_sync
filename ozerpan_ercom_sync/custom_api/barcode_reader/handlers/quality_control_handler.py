@@ -113,7 +113,7 @@ class QualityControlHandler(OperationHandler):
                 raise
 
             unfinished_operations = self._get_unfinished_previous_operations(
-                current_barcode
+                job_card,
             )
             if unfinished_operations:
                 raise QualityControlError(
@@ -233,23 +233,28 @@ class QualityControlHandler(OperationHandler):
         return True
 
     def _get_unfinished_previous_operations(
-        self, barcode: BarcodeInfo
+        self,
+        job_card: any,
     ) -> List[UnfinishedOperations]:
-        tesdetay = frappe.get_doc("TesDetay", barcode.tesdetay_ref)
+        job_cards = frappe.get_all(
+            "Job Card",
+            filters={
+                "work_order": job_card.work_order,
+                "status": ["not in", ["Cancelled", "Completed"]],
+                "operation": ["not in", ["Kalite"]],
+            },
+            fields=["name", "operation", "status", "is_corrective_job_card"],
+        )
         unfinished_operations = []
-        for op_state in tesdetay.operation_states:
-            if (
-                op_state.status == BarcodeStatus.PENDING.value
-                and op_state.operation not in ["Sevkiyat", "Kalite"]
-            ):
-                unfinished_operations.append(
-                    {
-                        "name": op_state.operation,
-                        "job_card": op_state.job_card_ref,
-                        "status": op_state.status,
-                        "is_corrective": bool(op_state.is_corrective),
-                    }
-                )
+        for jc in job_cards:
+            item = {
+                "name": jc.operation,
+                "job_card": jc.name,
+                "status": jc.status,
+                "is_corrective": jc.is_corrective_job_card,
+            }
+            unfinished_operations.append(item)
+
         return unfinished_operations
 
     def _record_quality_result(
