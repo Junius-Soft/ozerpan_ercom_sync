@@ -156,7 +156,7 @@ class GlassListProcessor(ExcelProcessorInterface):
                 )
 
             generated_files = {}
-            for stock_code, group_records in grouped_records.items():
+            for idx, (stock_code, group_records) in enumerate(grouped_records.items()):
                 try:
                     # Skip empty groups
                     if not group_records:
@@ -181,64 +181,43 @@ class GlassListProcessor(ExcelProcessorInterface):
                     # Create directory and file path
                     site_path = frappe.utils.get_site_path()
                     asc_dir = os.path.join(site_path, "public", "files", "asc")
+                    csv_dir = os.path.join(site_path, "public", "files", "csv")
                     os.makedirs(asc_dir, exist_ok=True)
+                    os.makedirs(csv_dir, exist_ok=True)
 
                     asc_file_path = os.path.join(
                         asc_dir,
                         f"OP_{order_no}_{stock_code}.asc",
+                    )
+                    csv_file_path = os.path.join(
+                        csv_dir,
+                        f"{order_no}_{stock_code}.csv",
                     )
 
                     # Validate glass doc exists
                     if not frappe.db.exists("Cam", stock_code):
                         frappe.log_error(
                             f"Cam document not found for stock code {stock_code}",
-                            "ASC File Generation Error",
+                            "ASC/CSV File Generation Error",
                         )
                         continue
 
                     glass_doc = frappe.get_doc("Cam", stock_code)
 
-                    # Write ASC file
-                    with open(asc_file_path, "w") as asc_file:
-                        frappe.log_error(
-                            f"Writing ASC file for stock code {stock_code}, order {order_no}",
-                            "ASC File Generation Info",
-                        )
+                    self._write_asc_file(
+                        file_path=asc_file_path,
+                        stock_code=stock_code,
+                        order_no=order_no,
+                        records=group_records,
+                        total_item_count=total_item_count,
+                        glass_doc=glass_doc,
+                    )
 
-                        first_record = group_records[0]
-                        current_date = datetime.datetime.now().strftime("%d%m%Y")
-
-                        # Write header with safe text conversion
-                        cari_unvan = self._safe_get_text(first_record, "CARIUNVAN")
-                        musteri = self._safe_get_text(first_record, "MUSTERI")
-
-                        header = "{:<31}{:>9}{:>18}\n{:>8}\n".format(
-                            f"{self._turkishToEnglish(cari_unvan)}/{self._turkishToEnglish(musteri)}",
-                            current_date,
-                            f"{total_item_count}V4",
-                            len(group_records),
-                        )
-                        asc_file.write(header)
-
-                        # Sort and write records
-                        group_records.sort(
-                            key=lambda x: (x.get("YUK", 0), x.get("GEN", 0)), reverse=True
-                        )
-
-                        for idx, record in enumerate(group_records, 1):
-                            try:
-                                line = self._format_asc_line(
-                                    idx=idx, record=record, glass_doc=glass_doc
-                                )
-                                asc_file.write(line)
-                            except Exception as line_error:
-                                frappe.log_error(
-                                    f"Error writing line for record {idx}, stock code {stock_code}: {str(line_error)}",
-                                    "ASC File Line Generation Error",
-                                )
-
-                        # Flush and close file explicitly
-                        asc_file.flush()
+                    self._write_csv_file(
+                        file_path=csv_file_path,
+                        order_no=order_no,
+                        records=group_records,
+                    )
 
                     # Verify file was written correctly
                     if (
@@ -248,27 +227,27 @@ class GlassListProcessor(ExcelProcessorInterface):
                         generated_files[stock_code] = asc_file_path
                     else:
                         frappe.log_error(
-                            f"ASC file for {stock_code} was created but is empty or missing",
-                            "ASC File Generation Error",
+                            f"ASC/CSV file for {stock_code} was created but is empty or missing",
+                            "ASC/CSV File Generation Error",
                         )
 
                 except Exception as e:
                     frappe.log_error(
                         f"Error processing stock code {stock_code}: {str(e)}",
-                        "ASC File Generation Error",
+                        "ASC/CSV File Generation Error",
                     )
 
             if not generated_files:
                 frappe.log_error(
-                    f"No ASC files were generated for sheet {sheet.name}",
-                    "ASC File Generation Warning",
+                    f"No ASC/CSV files were generated for sheet {sheet.name}",
+                    "ASC/CSV File Generation Warning",
                 )
 
             return generated_files
 
         except Exception as e:
             frappe.log_error(
-                f"Error generating ASC files for sheet {sheet.name}: {str(e)}",
+                f"Error generating ASC/CSV files for sheet {sheet.name}: {str(e)}",
                 "Glass List Sheet Processing Error",
             )
             raise
@@ -474,3 +453,218 @@ class GlassListProcessor(ExcelProcessorInterface):
             return None
 
     _get_sales_order = MLYListProcessor._get_sales_order
+
+    def _write_asc_file(
+        self,
+        file_path,
+        stock_code,
+        order_no,
+        records,
+        total_item_count,
+        glass_doc,
+    ):
+        with open(file_path, "w") as asc_file:
+            frappe.log_error(
+                f"Writing ASC file for stock code {stock_code}, order {order_no}",
+                "ASC File Generation Info",
+            )
+
+            first_record = records[0]
+            current_date = datetime.datetime.now().strftime("%d%m%Y")
+
+            # Write header with safe text conversion
+            cari_unvan = self._safe_get_text(first_record, "CARIUNVAN")
+            musteri = self._safe_get_text(first_record, "MUSTERI")
+
+            header = "{:<31}{:>9}{:>18}\n{:>8}\n".format(
+                f"{self._turkishToEnglish(cari_unvan)}/{self._turkishToEnglish(musteri)}",
+                current_date,
+                f"{total_item_count}V4",
+                len(records),
+            )
+            asc_file.write(header)
+
+            # Sort and write records
+            records.sort(key=lambda x: (x.get("YUK", 0), x.get("GEN", 0)), reverse=True)
+
+            for idx, record in enumerate(records, 1):
+                try:
+                    line = self._format_asc_line(
+                        idx=idx, record=record, glass_doc=glass_doc
+                    )
+                    asc_file.write(line)
+                except Exception as line_error:
+                    frappe.log_error(
+                        f"Error writing line for record {idx}, stock code {stock_code}: {str(line_error)}",
+                        "ASC File Line Generation Error",
+                    )
+
+            # Flush and close file explicitly
+            asc_file.flush()
+
+    def _write_csv_file(
+        self,
+        file_path,
+        order_no,
+        records,
+    ):
+        """Write CSV file(s) for glass data, splitting into multiple files if needed.
+
+        Args:
+            file_path: Base file path for CSV output
+            order_no: Order number for the records
+            records: List of glass records to process
+
+        Returns:
+            List of created file paths
+        """
+        from pathlib import Path
+
+        # Maximum records per CSV file
+        MAX_RECORDS_PER_FILE = 200
+
+        # Split records into chunks if needed
+        record_chunks = self._split_records_into_chunks(records, MAX_RECORDS_PER_FILE)
+        created_files = []
+
+        for chunk_index, chunk_records in enumerate(record_chunks, 1):
+            # Generate filename with suffix for multiple files
+            if len(record_chunks) > 1:
+                base_path = Path(file_path)
+                chunk_file_path = str(
+                    base_path.parent / f"{base_path.stem}-{chunk_index}{base_path.suffix}"
+                )
+            else:
+                chunk_file_path = file_path
+
+            # Create CSV file for this chunk
+            self._write_single_csv_file(
+                chunk_file_path, order_no, chunk_records, chunk_index
+            )
+            created_files.append(chunk_file_path)
+
+        return created_files
+
+    def _split_records_into_chunks(self, records: list, chunk_size: int) -> list:
+        """Split records into chunks of specified size.
+
+        Args:
+            records: List of records to split
+            chunk_size: Maximum number of records per chunk
+
+        Returns:
+            List of record chunks
+        """
+        chunks = []
+        for i in range(0, len(records), chunk_size):
+            chunks.append(records[i : i + chunk_size])
+        return chunks
+
+    def _write_single_csv_file(
+        self, file_path: str, order_no: str, records: list, file_number: int = 1
+    ) -> None:
+        """Write a single CSV file with the given records.
+
+        Args:
+            file_path: Path for the CSV file
+            order_no: Order number for the records
+            records: List of records for this file
+            file_number: File number for multi-file scenarios
+        """
+        import csv
+
+        static_rows = [
+            [":GT2K_RECIPE", "0"],
+            [":RECIPE_ID", "1"],
+            [":RECIPE_NAME", "recete1"],
+            [":DEVICE_NUM", "600"],
+            [":RECORD_NUM", "10"],
+            [":DATE_ORDER", "YYYY/MM/DD hh:mm:ss"],
+            [":LOCAL_TIME", "GMT 00:00"],
+            [":TIME_INF_ORDER", "L"],
+            ["", "DEV_COMMENT", "DEV_TYPE", "DISP_TYPE", "DEV_SIZE", "1"],
+            [":RECORD_NAME", "", "", "", "", order_no],
+            [":RECORD_ATTR"],
+            [":UPDATE", "", "", "", "", frappe.utils.now()],
+        ]
+
+        item_list = self._generate_csv_list(records)
+
+        with open(file_path, mode="w", newline="", encoding="utf-8") as csv_file:
+            writer = csv.writer(csv_file)
+            writer.writerows(static_rows)
+            for row in item_list:
+                writer.writerow(
+                    [
+                        row["col1"],
+                        row["col2"],
+                        row["col3"],
+                        row["col4"],
+                        row["col5"],
+                        row["col6"],
+                    ]
+                )
+
+    def _generate_csv_list(self, records):
+        """Generate CSV list with width, height, and quantity data.
+
+        Args:
+            records: List of record dictionaries containing glass data
+
+        Returns:
+            List of mapped records for CSV generation
+        """
+        # Constants for CSV generation
+        TYPE_CONFIGS = {
+            "width": {"start_index": 1, "end_index": 200, "field_key": "GEN"},
+            "height": {"start_index": 201, "end_index": 400, "field_key": "YUK"},
+            "quantity": {"start_index": 401, "end_index": 600, "field_key": "ADET"},
+        }
+
+        mapped_records = []
+
+        for type_name, config in TYPE_CONFIGS.items():
+            current_index = config["start_index"]
+
+            # Process actual records
+            for record in records:
+                value = record.get(config["field_key"], "0")
+                mapped_records.append(self._create_csv_record(current_index, value))
+                current_index += 1
+
+            # Fill remaining slots with zeros
+            self._fill_remaining_slots(mapped_records, current_index, config["end_index"])
+
+        return mapped_records
+
+    def _create_csv_record(self, index: int, value: str) -> dict:
+        """Create a single CSV record with standard format.
+
+        Args:
+            index: The index number for col1
+            value: The value for col6
+
+        Returns:
+            Dictionary representing a CSV record
+        """
+        return {
+            "col1": index,
+            "col2": "",
+            "col3": "BIN16_Unsigned",
+            "col4": "UNSIGNED_DEC",
+            "col5": "1",
+            "col6": str(value) if value else "0",
+        }
+
+    def _fill_remaining_slots(
+        self, mapped_records: list, start_index: int, end_index: int
+    ) -> None:
+        """Fill remaining slots with zero values up to the end index.
+
+        Args:
+            mapped_records: List to append records to
+            start_index: Starting index for filling
+            end_index: End index (inclusive)
+        """
+        for index in range(start_index, end_index + 1):
+            mapped_records.append(self._create_csv_record(index, "0"))
