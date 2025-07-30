@@ -571,38 +571,36 @@ class GlassListProcessor(ExcelProcessorInterface):
             records: List of records for this file
             file_number: File number for multi-file scenarios
         """
-        import csv
+        from datetime import datetime
+
+        now_str = frappe.utils.now()
+        now_dt = datetime.strptime(now_str, "%Y-%m-%d %H:%M:%S.%f")
+        formatted_now = now_dt.strftime("%Y/%m/%d %H:%M:%S")
 
         static_rows = [
             [":GT2K_RECIPE", "0"],
             [":RECIPE_ID", "1"],
-            [":RECIPE_NAME", "recete1"],
+            [":RECIPE_NAME", '"recete1"'],
             [":DEVICE_NUM", "600"],
             [":RECORD_NUM", "10"],
             [":DATE_ORDER", "YYYY/MM/DD hh:mm:ss"],
             [":LOCAL_TIME", "GMT 00:00"],
             [":TIME_INF_ORDER", "L"],
             ["", "DEV_COMMENT", "DEV_TYPE", "DISP_TYPE", "DEV_SIZE", "1"],
-            [":RECORD_NAME", "", "", "", "", order_no],
-            [":RECORD_ATTR"],
-            [":UPDATE", "", "", "", "", frappe.utils.now()],
+            [":RECORD_NAME", "", "", "", "", f'"{order_no.lower()}"'],
+            [":RECORD_ATTR", "", "", "", "", ""],
+            [":UPDATE", "", "", "", "", formatted_now],
         ]
 
         item_list = self._generate_csv_list(records)
 
         with open(file_path, mode="w", newline="", encoding="utf-8") as csv_file:
-            writer = csv.writer(csv_file)
-            writer.writerows(static_rows)
+            for row in static_rows:
+                csv_file.write(",".join(str(cell) for cell in row) + "\n")
+
             for row in item_list:
-                writer.writerow(
-                    [
-                        row["col1"],
-                        row["col2"],
-                        row["col3"],
-                        row["col4"],
-                        row["col5"],
-                        row["col6"],
-                    ]
+                csv_file.write(
+                    f"{row['col1']},{row['col2']},{row['col3']},{row['col4']},{row['col5']},{row['col6']}\n"
                 )
 
     def _generate_csv_list(self, records):
@@ -653,7 +651,7 @@ class GlassListProcessor(ExcelProcessorInterface):
             "col3": "BIN16_Unsigned",
             "col4": "UNSIGNED_DEC",
             "col5": "1",
-            "col6": str(value) if value else "0",
+            "col6": f'"{str(value)}"' if value else '"0"',
         }
 
     def _fill_remaining_slots(
