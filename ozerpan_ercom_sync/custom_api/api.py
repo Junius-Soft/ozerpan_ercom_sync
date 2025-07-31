@@ -211,7 +211,6 @@ def update_job_cards():
     target_status = form_data.status
     employee = form_data.employee
     reason = form_data.reason
-    qty = form_data.qty if form_data.qty else None
 
     missing_job_cards = []
     messages = []
@@ -246,16 +245,8 @@ def update_job_cards():
         # Complete all valid job cards in bulk to avoid overlap validation
         if valid_job_cards_for_completion:
             try:
-                # Get the first job card to determine the quantity
-                if not qty:
-                    first_jc = frappe.get_doc(
-                        "Job Card", valid_job_cards_for_completion[0]
-                    )
-                    qty = first_jc.for_quantity
-
                 complete_job_bulk(
                     valid_job_cards_for_completion,
-                    qty,
                     employee,
                 )
 
