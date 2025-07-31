@@ -127,7 +127,7 @@ def save_with_retry(doc, max_retries=3):
             doc.reload()
 
 
-def complete_job_bulk(job_card_names: list, qty: int, employee: str) -> None:
+def complete_job_bulk(job_card_names: list, employee: str) -> None:
     """
     Complete multiple job cards simultaneously using direct SQL updates
     to bypass the overlap validation that prevents the same employee
@@ -147,8 +147,13 @@ def complete_job_bulk(job_card_names: list, qty: int, employee: str) -> None:
                 job_card_name,
                 ["for_quantity", "total_completed_qty"],
             )
-            if qty + total_completed_qty > for_quantity:
-                frappe.throw(_("Quantity should be less than Qty To Manufacture"))
+
+            # Calculate remaining quantity to complete
+            total_completed_qty = total_completed_qty or 0
+            remaining_qty = for_quantity - total_completed_qty
+
+            if remaining_qty <= 0:
+                frappe.throw(_("Job Card is already fully completed"))
 
             open_time_logs = frappe.db.sql(
                 """
@@ -199,7 +204,13 @@ def complete_job_bulk(job_card_names: list, qty: int, employee: str) -> None:
                     SET to_time = %s, completed_qty = %s, time_in_mins = %s, modified = %s
                     WHERE name = %s
                 """,
-                    (current_time, qty, time_in_mins, current_time, time_log_name),
+                    (
+                        current_time,
+                        remaining_qty,
+                        time_in_mins,
+                        current_time,
+                        time_log_name,
+                    ),
                 )
 
                 # Calculate total time in minutes for the job card
