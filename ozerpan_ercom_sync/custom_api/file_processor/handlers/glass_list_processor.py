@@ -181,7 +181,7 @@ class GlassListProcessor(ExcelProcessorInterface):
                     # Create directory and file path
                     site_path = frappe.utils.get_site_path()
                     asc_dir = os.path.join(site_path, "public", "files", "asc")
-                    csv_dir = os.path.join(site_path, "public", "files", "csv")
+                    csv_dir = os.path.join(site_path, "public", "files", "csv", order_no)
                     os.makedirs(asc_dir, exist_ok=True)
                     os.makedirs(csv_dir, exist_ok=True)
 
@@ -627,8 +627,6 @@ class GlassListProcessor(ExcelProcessorInterface):
             # Process actual records
             for record in records:
                 value = record.get(config["field_key"], "0")
-                if value > 21 and type_name != "quantity":
-                    value -= 21
                 mapped_records.append(self._create_csv_record(current_index, value))
                 current_index += 1
 
