@@ -156,6 +156,7 @@ class GlassListProcessor(ExcelProcessorInterface):
                 )
 
             generated_files = {}
+            file_counter = 1  # Initialize counter for sequential CSV file naming
             for idx, (stock_code, group_records) in enumerate(grouped_records.items()):
                 try:
                     # Skip empty groups
@@ -181,17 +182,13 @@ class GlassListProcessor(ExcelProcessorInterface):
                     # Create directory and file path
                     site_path = frappe.utils.get_site_path()
                     asc_dir = os.path.join(site_path, "public", "files", "asc")
-                    csv_dir = os.path.join(site_path, "public", "files", "csv", order_no)
+                    csv_base_dir = os.path.join(site_path, "public", "files", "csv")
                     os.makedirs(asc_dir, exist_ok=True)
-                    os.makedirs(csv_dir, exist_ok=True)
+                    os.makedirs(csv_base_dir, exist_ok=True)
 
                     asc_file_path = os.path.join(
                         asc_dir,
                         f"OP_{order_no}_{stock_code}.asc",
-                    )
-                    csv_file_path = os.path.join(
-                        csv_dir,
-                        f"{order_no}_{stock_code}.csv",
                     )
 
                     # Validate glass doc exists
@@ -213,10 +210,12 @@ class GlassListProcessor(ExcelProcessorInterface):
                         glass_doc=glass_doc,
                     )
 
-                    self._write_csv_file(
-                        file_path=csv_file_path,
-                        order_no=order_no,
+                    created_csv_files, file_counter = self._write_csv_file(
+                        base_output_dir=csv_base_dir,
+                        sales_order=order_no,
+                        order_no=stock_code,
                         records=group_records,
+                        file_counter=file_counter,
                     )
 
                     # Verify file was written correctly
@@ -504,46 +503,69 @@ class GlassListProcessor(ExcelProcessorInterface):
 
     def _write_csv_file(
         self,
-        file_path,
+        base_output_dir,
+        sales_order,
         order_no,
         records,
+        file_counter=1,
     ):
-        """Write CSV file(s) for glass data, splitting into multiple files if needed.
+        """Write CSV file(s) for glass data with sequential naming across sales orders.
+
+        This method handles the creation of CSV files with the following workflow:
+        - Files are organized in folders named after the sales order (e.g., S502088/)
+        - All files use sequential naming: Company_0001.csv, Company_0002.csv, etc.
+        - Files are split when records exceed 200 per file
+        - Sequential numbering continues across different glass items in the same sales order
+
+        Example:
+            Sales Order S502088 with:
+            - Glass A: 450 records -> Company_0001.csv, Company_0002.csv, Company_0003.csv
+            - Glass B: 50 records  -> Company_0004.csv
+            All files stored in: base_output_dir/S502088/
 
         Args:
-            file_path: Base file path for CSV output
-            order_no: Order number for the records
-            records: List of glass records to process
+            base_output_dir: Base directory for output files
+            sales_order: Sales order number used for folder organization
+            order_no: Order/glass identifier for the records
+            records: List of glass records to process (max 200 per file)
+            file_counter: Starting counter for sequential file naming (default: 1)
 
         Returns:
-            List of created file paths
+            Tuple of (created_file_paths, updated_file_counter) where:
+            - created_file_paths: List of full paths to created CSV files
+            - updated_file_counter: Next available counter for subsequent calls
         """
         from pathlib import Path
 
         # Maximum records per CSV file
         MAX_RECORDS_PER_FILE = 200
 
+        # Create sales order directory
+        sales_order_dir = Path(base_output_dir) / sales_order
+        sales_order_dir.mkdir(parents=True, exist_ok=True)
+
         # Split records into chunks if needed
         record_chunks = self._split_records_into_chunks(records, MAX_RECORDS_PER_FILE)
         created_files = []
+        current_counter = file_counter
 
-        for chunk_index, chunk_records in enumerate(record_chunks, 1):
-            # Generate filename with suffix for multiple files
-            if len(record_chunks) > 1:
-                base_path = Path(file_path)
-                chunk_file_path = str(
-                    base_path.parent / f"{base_path.stem}-{chunk_index}{base_path.suffix}"
-                )
-            else:
-                chunk_file_path = file_path
+        for chunk_records in record_chunks:
+            # Generate sequential filename
+            filename = f"Company_{current_counter:04d}.csv"
+            chunk_file_path = sales_order_dir / filename
 
             # Create CSV file for this chunk
             self._write_single_csv_file(
-                chunk_file_path, order_no, chunk_records, chunk_index
+                str(chunk_file_path),
+                sales_order,
+                order_no,
+                chunk_records,
+                current_counter,
             )
-            created_files.append(chunk_file_path)
+            created_files.append(str(chunk_file_path))
+            current_counter += 1
 
-        return created_files
+        return created_files, current_counter
 
     def _split_records_into_chunks(self, records: list, chunk_size: int) -> list:
         """Split records into chunks of specified size.
@@ -561,7 +583,12 @@ class GlassListProcessor(ExcelProcessorInterface):
         return chunks
 
     def _write_single_csv_file(
-        self, file_path: str, order_no: str, records: list, file_number: int = 1
+        self,
+        file_path: str,
+        sales_order: str,
+        order_no: str,
+        records: list,
+        file_number: int = 1,
     ) -> None:
         """Write a single CSV file with the given records.
 
@@ -569,7 +596,7 @@ class GlassListProcessor(ExcelProcessorInterface):
             file_path: Path for the CSV file
             order_no: Order number for the records
             records: List of records for this file
-            file_number: File number for multi-file scenarios
+            file_number: Sequential file number across all glass items
         """
         from datetime import datetime
 
@@ -587,7 +614,14 @@ class GlassListProcessor(ExcelProcessorInterface):
             [":LOCAL_TIME", "GMT 00:00"],
             [":TIME_INF_ORDER", "L"],
             ["", "DEV_COMMENT", "DEV_TYPE", "DISP_TYPE", "DEV_SIZE", "1"],
-            [":RECORD_NAME", "", "", "", "", f'"{order_no.lower()}"'],
+            [
+                ":RECORD_NAME",
+                "",
+                "",
+                "",
+                "",
+                f'"{sales_order.lower()}-{order_no.lower()}"',
+            ],
             [":RECORD_ATTR", "", "", "", "", ""],
             [":UPDATE", "", "", "", "", formatted_now],
         ]
