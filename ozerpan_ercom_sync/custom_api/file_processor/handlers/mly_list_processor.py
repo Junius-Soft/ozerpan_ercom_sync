@@ -121,7 +121,7 @@ class MLYListProcessor(ExcelProcessorInterface):
         db_pool = DatabaseConnectionPool()
         try:
             query = """
-                SELECT SAYAC, POZNO, SIPARISNO, GENISLIK, YUKSEKLIK, ADET, RENK,
+                SELECT SAYAC, POZNO, SIPARISNO, GENISLIK, YUKSEKLIK, ADET, CAMADET, RENK,
                 SERI, ACIKLAMA, NOTLAR, PozID, KASAMTUL, KAYITMTUL, KANATMTUL, CAMNET
                 FROM dbpoz WHERE SIPARISNO = %(order_no)s
             """
@@ -279,7 +279,7 @@ class MLYListProcessor(ExcelProcessorInterface):
                     row=row,
                     item_name=base_name,
                     stock_code=stock_code,
-                    for_qty=poz_data.get("ADET"),
+                    for_qty=poz_data.get("CAMADET"),
                 )
                 glass_items.append(glass_item)
 
