@@ -11,6 +11,7 @@ def after_insert(doc, method):
     print("\n\n-- Job Card After Insert -- (Start)")
     production_item = doc.production_item
     operation_name = doc.operation
+    opti_no = frappe.db.get_value("Work Order", doc.work_order, "custom_opti_no")
 
     if operation_name == "Profil Temin" or operation_name == "Sac Kesim":
         return
@@ -46,12 +47,14 @@ def after_insert(doc, method):
                 doc=doc,
                 order_no=order_no,
                 poz_no=poz_no,
+                opti_no=opti_no,
             )
         else:
             insert_job_card_to_operation_states_list(
                 doc=doc,
                 order_no=order_no,
                 poz_no=poz_no,
+                opti_no=opti_no,
             )
 
     doc.flags.from_after_insert = True
@@ -181,9 +184,7 @@ def create_glass_job_items(glasses: List, doc: Dict) -> List[Dict]:
 
 
 def insert_corrective_job_card_to_operation_states_list(
-    doc: Dict,
-    order_no: str,
-    poz_no: str,
+    doc: Dict, order_no: str, poz_no: str, opti_no: str
 ) -> None:
     if not doc.custom_target_sanal_adet:
         return
@@ -191,6 +192,7 @@ def insert_corrective_job_card_to_operation_states_list(
     tesdetay_list = get_tesdetay_list(
         order_no=order_no,
         poz_no=poz_no,
+        opti_no=opti_no,
         target_sanal_adet=doc.custom_target_sanal_adet,
     )
 
@@ -220,8 +222,9 @@ def insert_job_card_to_operation_states_list(
     doc: Dict,
     order_no: str,
     poz_no: str,
+    opti_no: str,
 ) -> None:
-    tesdetay_list = get_filtered_tesdetay_list(doc, order_no, poz_no)
+    tesdetay_list = get_filtered_tesdetay_list(doc, order_no, poz_no, opti_no)
     selected_tesdetays = select_target_tesdetay(tesdetay_list, doc.for_quantity)
 
     # Check if there is "acili" or "kemereli" main profile,
@@ -290,8 +293,9 @@ def get_filtered_tesdetay_list(
     doc: Dict,
     order_no: str,
     poz_no: str,
+    opti_no: str,
 ) -> List[Dict]:
-    tesdetay_list = get_tesdetay_list(order_no=order_no, poz_no=poz_no)
+    tesdetay_list = get_tesdetay_list(order_no=order_no, poz_no=poz_no, opti_no=opti_no)
 
     return [
         td

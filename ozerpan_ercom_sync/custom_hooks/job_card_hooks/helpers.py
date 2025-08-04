@@ -86,6 +86,7 @@ def get_glass_list(
 def get_tesdetay_list(
     order_no: str,
     poz_no: str,
+    opti_no: str,
     target_sanal_adet: Optional[str] = None,
 ) -> List[Dict]:
     """
@@ -100,7 +101,7 @@ def get_tesdetay_list(
         List of TesDetay records with their operation states
     """
     print("\n\n-- Get TesDetay List Helper -- (Start)")
-    filters = {"siparis_no": order_no, "poz_no": poz_no}
+    filters = {"siparis_no": order_no, "poz_no": poz_no, "opti_no": opti_no}
 
     if target_sanal_adet is not None:
         filters["sanal_adet"] = target_sanal_adet
@@ -124,6 +125,7 @@ def get_tesdetay_list(
         LEFT JOIN `tabTesDetay Operation Status` os ON td.name = os.parent
         WHERE td.siparis_no = %(siparis_no)s
         AND td.poz_no = %(poz_no)s
+        AND td.oto_no = %(opti_no)s
         {sanal_adet_filter}
         ORDER BY td.name, os.idx
         """.format(

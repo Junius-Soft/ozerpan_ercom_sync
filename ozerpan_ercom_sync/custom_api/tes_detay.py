@@ -10,7 +10,7 @@ from ozerpan_ercom_sync.db_pool import DatabaseConnectionPool
 
 
 @frappe.whitelist()
-def sync_tes_detay(order_no=None):
+def sync_tes_detay(order_no=None, opti_no=None):
     print("-- Sync TesDetay -- ")
     logger_dict = generate_logger("tesdetay_sync")
     logger = logger_dict["logger"]
@@ -19,7 +19,7 @@ def sync_tes_detay(order_no=None):
         logger.info("Starting synchronizing TesDetay.")
         pool = DatabaseConnectionPool()
         logger.info("Connection pool is initializing.")
-        data = get_tesdetay_data(pool, order_no)
+        data = get_tesdetay_data(pool, order_no, opti_no)
         data_len = len(data)
 
         values = []
@@ -140,16 +140,8 @@ def sync_tes_detay(order_no=None):
         logger.info("Connection pool is closed.")
 
 
-def get_tesdetay_data(pool, order_no=None):
+def get_tesdetay_data(pool, order_no=None, opti_no=None):
     print("\n\n\n---Get Tesdetay Data---")
-
-    # query = """
-    #     SELECT td.*, t.*, s.MUSTERISI
-    #     FROM dbtesdetay td
-    #     LEFT JOIN dbtes t ON td.OTONO = t.OTONO
-    #     LEFT JOIN dbsiparis s ON td.SIPARISNO = s.SIPARISNO
-    #     WHERE td.SIPARISNO = %(order_no)s
-    # """
 
     query = """
         SELECT MIN(td.SAYAC) as SAYAC, td.OTONO, td.SIPARISNO, td.CARIKOD,
@@ -165,12 +157,13 @@ def get_tesdetay_data(pool, order_no=None):
         LEFT JOIN dbtes t ON td.OTONO = t.OTONO
         LEFT JOIN dbsiparis s ON td.SIPARISNO = s.SIPARISNO
         WHERE td.SIPARISNO = %(order_no)s
+        AND td.OTONO = %(opti_no)s
         GROUP BY td.ARABANO, td.MODEL, td.EKSEN, td.OLCU, td.STOKKODU,
                 td.RC, td.YERNO, td.POZISYON, td.OTONO, td.POZNO,
                 td.SANALADET, td.URETIMSAYAC
     """
 
-    results = pool.execute_query(query, {"order_no": order_no})
+    results = pool.execute_query(query, {"order_no": order_no, "opti_no": opti_no})
     return results
 
 
