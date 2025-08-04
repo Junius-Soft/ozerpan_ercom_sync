@@ -426,23 +426,18 @@ class GlassListProcessor(ExcelProcessorInterface):
                 "status": "Pending",
             }
             qty = int(record.get("ADET"))
-            poz_no = record.get("POZNO")
-            virtual_qty = poz_quantity[str(poz_no)]
 
-            item_qty_per_virtual_qty = qty / virtual_qty
-
-            for i in range(virtual_qty):
-                for j in range(int(item_qty_per_virtual_qty)):
-                    new_item = item_data.copy()
-                    doc = frappe.get_doc(
-                        {
-                            "doctype": "CamListe",
-                            "sanal_adet": f"{i + 1}/{virtual_qty}",
-                            **new_item,
-                        }
-                    )
-                    doc.insert()
-                    items.append(doc)
+            for i in range(qty):
+                new_item = item_data.copy()
+                doc = frappe.get_doc(
+                    {
+                        "doctype": "CamListe",
+                        "sanal_adet": f"{i + 1}",
+                        **new_item,
+                    }
+                )
+                doc.insert()
+                items.append(doc)
 
         except Exception as e:
             frappe.log_error(
