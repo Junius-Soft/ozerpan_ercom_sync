@@ -819,14 +819,14 @@ class BarcodeRequest(TypedDict):
 
 @frappe.whitelist()
 def read_barcode(
-    barcode: str,
-    employee: str,
-    operation: str,
-    quality_data: Optional[Dict] = None,
-    order_no: Optional[str] = None,
-    poz_no: Optional[int] = None,
-    sanal_adet: Optional[str] = None,
-) -> Dict[str, Any]:
+    barcode,
+    employee,
+    operation,
+    quality_data=None,
+    order_no=None,
+    poz_no=None,
+    sanal_adet=None,
+):
     try:
         # Convert poz_no to int if it's provided as string
         if poz_no is not None and isinstance(poz_no, str):
@@ -834,7 +834,7 @@ def read_barcode(
                 poz_no = int(poz_no)
             except ValueError:
                 return _create_error_response(
-                    "Invalid poz_no parameter. Must be a valid integer."
+                    "Invalid poz_no parameter. Must be a valid integer.", "validation"
                 )
 
         reader = BarcodeReader()
