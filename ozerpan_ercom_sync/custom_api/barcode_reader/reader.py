@@ -59,6 +59,21 @@ class BarcodeReader:
                 "options": tesdetay,
             }
 
+        job_card = get_job_card(
+            operation=operation,
+            production_item=f"{tesdetay.get('siparis_no')}-{tesdetay.get('poz_no')}",
+            barcode=barcode,
+        )
+
+        poz_data = get_poz_data(
+            barcode=barcode,
+            tesdetay_name=tesdetay.get("name"),
+            order_no=tesdetay.get("siparis_no"),
+            poz_no=tesdetay.get("poz_no"),
+            sanal_adet=tesdetay.get("sanal_adet"),
+        )
+        formatted_job_card = format_job_card_response(job_card)
+
         # If this is a completed TesDetay (for information only), return info without processing
         if tesdetay.get("for_information_only"):
             return {
@@ -67,13 +82,9 @@ class BarcodeReader:
                     "This TesDetay is already completed for the specified operation."
                 ),
                 "tesdetay_info": tesdetay,
+                "poz_data": poz_data,
+                "job_card": formatted_job_card if job_card else None,
             }
-
-        job_card = get_job_card(
-            operation=operation,
-            production_item=f"{tesdetay.get('siparis_no')}-{tesdetay.get('poz_no')}",
-            barcode=barcode,
-        )
 
         handler = self.handlers.get(operation, self.handlers["default"])
 
@@ -86,15 +97,6 @@ class BarcodeReader:
             quality_data=parsed_quality_data,
             tesdetay_ref=tesdetay.get("name"),
         )
-
-        poz_data = get_poz_data(
-            barcode=barcode,
-            tesdetay_name=tesdetay.get("name"),
-            order_no=tesdetay.get("siparis_no"),
-            poz_no=tesdetay.get("poz_no"),
-            sanal_adet=tesdetay.get("sanal_adet"),
-        )
-        formatted_job_card = format_job_card_response(job_card)
 
         return {
             "status": "success",
