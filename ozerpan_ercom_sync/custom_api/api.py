@@ -222,8 +222,6 @@ def update_job_cards():
             )
         )
 
-    frappe.throw("Something")
-
     missing_job_cards = []
     messages = []
 
