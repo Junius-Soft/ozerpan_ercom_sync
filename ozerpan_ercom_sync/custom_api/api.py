@@ -205,22 +205,14 @@ def _get_related_glasses(order_no: str, poz_no: str) -> List[Dict]:
 
 
 @frappe.whitelist()
-def update_job_cards():
+def update_job_cards(
+    target_status: str,
+    employee: str,
+    job_cards: list[str],
+    reason: Optional[str] = None,
+):
     print("\n\n-- Update Job Cards -- (Start)")
-    form_data = frappe.form_dict
-    target_status = form_data.status
-    employee = form_data.employee
-    reason = form_data.reason
-    operation = form_data.operation
-
     allowed_operations = ["Profil Temin", "Sac Kesim"]
-
-    if operation not in allowed_operations:
-        frappe.throw(
-            _("Allowed operations: {0}, requested operation: {1}").format(
-                allowed_operations, operation
-            )
-        )
 
     missing_job_cards = []
     messages = []
@@ -229,12 +221,19 @@ def update_job_cards():
     if target_status == "Completed":
         valid_job_cards_for_completion = []
 
-        for jc_name in form_data.job_cards:
+        for jc_name in job_cards:
             try:
                 jc_doc = frappe.get_doc("Job Card", jc_name)
             except frappe.DoesNotExistError:
                 missing_job_cards.append(jc_name)
                 continue
+
+            if jc_doc.operation not in allowed_operations:
+                frappe.throw(
+                    _("Allowed operations: {0}, requested operation: {1}").format(
+                        allowed_operations, jc_doc.operation
+                    )
+                )
 
             if jc_doc.status == target_status:
                 messages.append(f"Job Card is already {jc_doc.status}: {jc_doc.name}")
@@ -276,12 +275,19 @@ def update_job_cards():
         if target_status in ["Work In Progress", "On Hold"]:
             valid_job_cards_for_status_update = []
 
-            for jc_name in form_data.job_cards:
+            for jc_name in job_cards:
                 try:
                     jc_doc = frappe.get_doc("Job Card", jc_name)
                 except frappe.DoesNotExistError:
                     missing_job_cards.append(jc_name)
                     continue
+
+                if jc_doc.operation not in allowed_operations:
+                    frappe.throw(
+                        _("Allowed operations: {0}, requested operation: {1}").format(
+                            allowed_operations, jc_doc.operation
+                        )
+                    )
 
                 if jc_doc.status == target_status:
                     messages.append(f"Job Card is already {jc_doc.status}: {jc_doc.name}")
