@@ -37,6 +37,7 @@ class BarcodeReader:
         order_no: Optional[str] = None,
         poz_no: Optional[int] = None,
         sanal_adet: Optional[str] = None,
+        tesdetay_name: Optional[str] = None,
     ) -> Dict[str, Any]:
         print("\n\n\n")
         print("--- Reader.read_barcode ---")
@@ -46,7 +47,9 @@ class BarcodeReader:
             order_no=order_no,
             poz_no=poz_no,
             sanal_adet=sanal_adet,
+            tesdetay_name=tesdetay_name,
         )
+
         if not tesdetay:
             raise InvalidBarcodeError("Invalid Barcode")
 

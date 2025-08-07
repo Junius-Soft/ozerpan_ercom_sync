@@ -826,6 +826,7 @@ def read_barcode(
     order_no=None,
     poz_no=None,
     sanal_adet=None,
+    tesdetay_name=None,
 ):
     try:
         # Convert poz_no to int if it's provided as string
@@ -846,6 +847,7 @@ def read_barcode(
             order_no=order_no,
             poz_no=poz_no,
             sanal_adet=sanal_adet,
+            tesdetay_name=tesdetay_name,
         )
         return result
     except (QualityControlError, InvalidBarcodeError, BarcodeError) as e:
