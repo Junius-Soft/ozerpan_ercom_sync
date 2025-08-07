@@ -77,3 +77,4 @@ Please upload required files.,Lütfen gerekli dosyaları yükleyin.
 Price List Uploaded,Fiyat Listesi Yüklendi
 
 Only KANAT barcodes are allowed in Kanat Hazirlik operation,Kanat Hazırlik işleminde sadece KANAT barkodlarına izin verilir
+"Expected operations: {0}, given operation: {1}", "Beklenen operasyonlar: {0}, verilen operasyon: {1}"
