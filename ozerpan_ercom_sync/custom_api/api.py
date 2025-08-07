@@ -211,6 +211,18 @@ def update_job_cards():
     target_status = form_data.status
     employee = form_data.employee
     reason = form_data.reason
+    operation = form_data.operation
+
+    allowed_operations = ["Profil Temin", "Sac Kesim"]
+
+    if operation not in allowed_operations:
+        frappe.throw(
+            _("Allowed operations: {0}, requested operation: {1}").format(
+                allowed_operations, operation
+            )
+        )
+
+    frappe.throw("Something")
 
     missing_job_cards = []
     messages = []
