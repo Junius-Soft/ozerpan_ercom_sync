@@ -170,9 +170,11 @@ def bulk_update_operation_status(tesdetay_refs, job_card_refs, status):
 
     sql = f"""
         UPDATE `tabTesDetay Operation Status`
-        SET status = %s
+        SET status = %s, modified = %s, modified_by = %s
         WHERE {where_clause}
     """
 
     values.insert(0, status)
+    values.insert(1, now())
+    values.insert(2, frappe.session.user)
     frappe.db.sql(sql, tuple(values))
