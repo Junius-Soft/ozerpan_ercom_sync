@@ -15,6 +15,7 @@ def get_tesdetay(
     order_no: Optional[str] = None,
     poz_no: Optional[int] = None,
     sanal_adet: Optional[str] = None,
+    tesdetay_name: Optional[str] = None,
 ) -> Any:
     filters = {"barkod": barcode}
     results = frappe.db.sql(
@@ -93,6 +94,11 @@ def get_tesdetay(
         if sanal_adet is not None:
             filtered_data = [
                 od for od in filtered_data if od.get("sanal_adet") == sanal_adet
+            ]
+
+        if tesdetay_name is not None:
+            filtered_data = [
+                od for od in filtered_data if od.get("name") == tesdetay_name
             ]
 
         if filtered_data:
