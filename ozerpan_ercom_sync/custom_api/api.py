@@ -290,7 +290,7 @@ def update_job_cards(
                     missing_job_cards.append(jc_name)
                     continue
 
-                if jc_doc.operation != operation
+                if jc_doc.operation != operation:
                     frappe.throw(
                         _("Allowed operations: {0}, requested operation: {1}").format(
                             operation, jc_doc.operation
