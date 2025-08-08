@@ -84,6 +84,7 @@ def get_tesdetay(
             if od.get("siparis_no") == order_no
             and od.get("poz_no") == poz_no
             and od.get("operation_states")
+            and od.get("name") == tesdetay_name
             and any(
                 os["operation"] == operation and os["status"] != "Completed"
                 for os in od.get("operation_states")
@@ -94,11 +95,6 @@ def get_tesdetay(
         if sanal_adet is not None:
             filtered_data = [
                 od for od in filtered_data if od.get("sanal_adet") == sanal_adet
-            ]
-
-        if tesdetay_name is not None:
-            filtered_data = [
-                od for od in filtered_data if od.get("name") == tesdetay_name
             ]
 
         if filtered_data:
@@ -113,6 +109,7 @@ def get_tesdetay(
             if od.get("siparis_no") == order_no
             and od.get("poz_no") == poz_no
             and od.get("operation_states")
+            and od.get("name") == tesdetay_name
             and any(
                 os["operation"] == operation and os["status"] == "Completed"
                 for os in od.get("operation_states")
