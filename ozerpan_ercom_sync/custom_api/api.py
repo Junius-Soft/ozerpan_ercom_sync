@@ -326,7 +326,7 @@ def update_job_cards(
                     messages.append(f"Error updating job cards in bulk: {str(e)}")
         else:
             # Handle other status updates individually
-            for jc_name in form_data.job_cards:
+            for jc_name in job_cards:
                 try:
                     jc_doc = frappe.get_doc("Job Card", jc_name)
                 except frappe.DoesNotExistError:
