@@ -209,10 +209,18 @@ def update_job_cards(
     target_status: str,
     employee: str,
     job_cards: list[str],
+    operation: str,
     reason: Optional[str] = None,
 ):
     print("\n\n-- Update Job Cards -- (Start)")
     allowed_operations = ["Profil Temin", "Sac Kesim"]
+
+    if operation not in allowed_operations:
+        frappe.throw(
+            _("Allowed operations: {0}, requested operation: {1}").format(
+                allowed_operations, operation
+            )
+        )
 
     missing_job_cards = []
     messages = []
@@ -228,10 +236,10 @@ def update_job_cards(
                 missing_job_cards.append(jc_name)
                 continue
 
-            if jc_doc.operation not in allowed_operations:
+            if jc_doc.operation != operation:
                 frappe.throw(
                     _("Allowed operations: {0}, requested operation: {1}").format(
-                        allowed_operations, jc_doc.operation
+                        operation, jc_doc.operation
                     )
                 )
 
@@ -282,10 +290,10 @@ def update_job_cards(
                     missing_job_cards.append(jc_name)
                     continue
 
-                if jc_doc.operation not in allowed_operations:
+                if jc_doc.operation != operation
                     frappe.throw(
                         _("Allowed operations: {0}, requested operation: {1}").format(
-                            allowed_operations, jc_doc.operation
+                            operation, jc_doc.operation
                         )
                     )
 
