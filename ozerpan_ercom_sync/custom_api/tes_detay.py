@@ -22,6 +22,19 @@ def sync_tes_detay(order_no=None, opti_no=None):
         data = get_tesdetay_data(pool, order_no, opti_no)
         data_len = len(data)
 
+        def _cleanup_tesdetays(order_no=None, opti_no=None):
+            filters = {}
+            if order_no:
+                filters["siparis_no"] = order_no
+            if opti_no:
+                filters["oto_no"] = opti_no
+
+            frappe.db.delete("TesDetay", filters)
+            return
+
+        if order_no or opti_no:
+            _cleanup_tesdetays(order_no, opti_no)
+
         values = []
         for i, row in enumerate(data):
             show_progress(
