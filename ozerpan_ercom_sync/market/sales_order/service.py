@@ -16,11 +16,6 @@ def create_market_sales_order(
 
     missing_items = []
 
-    # if ercom_sales_order:
-    #     order_no = "M" + ercom_sales_order.name
-    # else:
-    #     order_no = generate_market_order_no()
-
     order_no = generate_market_order_no(
         ercom_sales_order=ercom_sales_order.get("name")
         if ercom_sales_order is not None

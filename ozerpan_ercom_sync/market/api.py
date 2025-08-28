@@ -35,7 +35,12 @@ def get_ercom_orders(search_filter: Optional[str] = None) -> Dict[str, List[Sale
 
 
 @frappe.whitelist()
-def post_sales_order(data):
+def sales_order(data):
+    return data
+
+
+@frappe.whitelist()
+def create_sales_order(data):
     print("\n\n-- Create Sales Order (Market) -- START\n")
     response: dict[str, any] = {}
     customer = get_user_customer_details(frappe.session.user)
@@ -58,7 +63,9 @@ def post_sales_order(data):
     )
 
     if new_sales_order_result.get("status") == "error":
-        return new_sales_order_result
+        frappe.local.response["http_status_code"] = 400
+        frappe.local.response["message"] = new_sales_order_result
+        return
 
     print("\n-- Create Sales Order (Market) -- END\n\n")
     return {
