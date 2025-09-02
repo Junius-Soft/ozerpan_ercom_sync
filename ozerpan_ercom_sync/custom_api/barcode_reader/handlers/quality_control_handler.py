@@ -1,5 +1,4 @@
 import json
-from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 import frappe
@@ -21,14 +20,6 @@ from ..utils.job_card import (
     update_job_card_status,
 )
 from .kaynak_kose_handler import KaynakKoseHandler
-
-
-@dataclass
-class UnfinishedOperations:
-    name: str
-    job_card: str
-    status: str
-    is_corrective: bool
 
 
 class QualityControlHandler(OperationHandler):
@@ -85,11 +76,11 @@ class QualityControlHandler(OperationHandler):
                     "quality_data": quality_json_data,
                 }
 
-            # Check if all previous operations are completed
+            # Check if all previous operations are completed for this sanal_adet
             if not self._check_previous_operations_complete(current_barcode):
                 frappe.throw(
                     _(
-                        "This item has unfinished job cards. All jobs must be finished before quality control."
+                        "This sanal adet has unfinished previous operations. All previous operations for this sanal adet must be finished before quality control."
                     )
                 )
 
@@ -113,11 +104,11 @@ class QualityControlHandler(OperationHandler):
                 raise
 
             unfinished_operations = self._get_unfinished_previous_operations(
-                job_card,
+                current_barcode,
             )
             if unfinished_operations:
                 raise QualityControlError(
-                    "This item has unfinished operations.",
+                    "This sanal adet has unfinished previous operations.",
                     "unfinished operations",
                     {
                         "unfinished_operations": [
@@ -219,41 +210,57 @@ class QualityControlHandler(OperationHandler):
         }
 
     def _check_previous_operations_complete(self, barcode: BarcodeInfo) -> bool:
+        """Check if all previous operations are completed for this specific sanal_adet."""
         tesdetay = frappe.get_doc("TesDetay", barcode.tesdetay_ref)
+
+        # Get all operation states for this specific tesdetay (sanal_adet)
         for op_state in tesdetay.operation_states:
-            try:
-                job_card = frappe.get_doc("Job Card", op_state.job_card_ref)
-                if (
-                    job_card.get("operation") not in ["Sevkiyat", "Kalite"]
-                    and op_state.status == BarcodeStatus.PENDING.value
-                ):
-                    return False
-            except frappe.DoesNotExistError:
+            # Skip the quality operation itself and shipping operations
+            if op_state.operation in ["Kalite", "Sevkiyat"]:
                 continue
+
+            # Check if this operation state is not completed
+            if op_state.status != BarcodeStatus.COMPLETED.value:
+                return False
+
         return True
 
     def _get_unfinished_previous_operations(
         self,
-        job_card: any,
-    ) -> List[UnfinishedOperations]:
-        job_cards = frappe.get_all(
-            "Job Card",
-            filters={
-                "work_order": job_card.work_order,
-                "status": ["not in", ["Cancelled", "Completed"]],
-                "operation": ["not in", ["Kalite"]],
-            },
-            fields=["name", "operation", "status", "is_corrective_job_card"],
-        )
+        barcode: BarcodeInfo,
+    ) -> List[Dict[str, Any]]:
+        """Get unfinished previous operations for this specific sanal_adet."""
+        tesdetay = frappe.get_doc("TesDetay", barcode.tesdetay_ref)
         unfinished_operations = []
-        for jc in job_cards:
-            item = {
-                "name": jc.operation,
-                "job_card": jc.name,
-                "status": jc.status,
-                "is_corrective": jc.is_corrective_job_card,
-            }
-            unfinished_operations.append(item)
+
+        # Check all operation states for this specific tesdetay (sanal_adet)
+        for op_state in tesdetay.operation_states:
+            # Skip the quality operation itself and shipping operations
+            if op_state.operation in ["Kalite", "Sevkiyat"]:
+                continue
+
+            # Check if this operation state is not completed
+            if op_state.status != BarcodeStatus.COMPLETED.value:
+                try:
+                    job_card = frappe.get_doc("Job Card", op_state.job_card_ref)
+                    unfinished_operations.append(
+                        {
+                            "name": op_state.operation,
+                            "job_card": op_state.job_card_ref,
+                            "status": job_card.status,
+                            "is_corrective": op_state.is_corrective,
+                        }
+                    )
+                except frappe.DoesNotExistError:
+                    # Job card might not exist, but operation state shows it's not completed
+                    unfinished_operations.append(
+                        {
+                            "name": op_state.operation,
+                            "job_card": op_state.job_card_ref,
+                            "status": "Missing",
+                            "is_corrective": op_state.is_corrective,
+                        }
+                    )
 
         return unfinished_operations
 
@@ -309,7 +316,6 @@ Criteria Results:"""
                     "wip_warehouse": original_job_card.wip_warehouse,
                     "custom_target_sanal_adet": current_barcode.sanal_adet,
                     "custom_quality_job_card": quality_job_card.name,
-                    # "remarks": self._format_correction_remarks(operation_data),
                     "remarks": operation_data.get("description"),
                 }
             )
