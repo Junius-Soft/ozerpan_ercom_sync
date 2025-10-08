@@ -15,6 +15,47 @@ def sync_ercom():
     # sync_tes_detay()
 
 
+@frappe.whitelist()
+def get_single_order(order_no: str):
+    print("\n[DEBUG]:", "Order No:", order_no, "\n")
+    """Synchronizes orders from MySQL database to Frappe."""
+    logger = generate_logger("sync_single_order")["logger"]
+    db_pool = DatabaseConnectionPool()
+    try:
+        query: str = f"SELECT * FROM dbsiparis WHERE SIPARISNO = '{order_no}'"
+        data = db_pool.execute_query(query)
+
+        if not data:
+            logger.warning("No order data found")
+            return {"message": "No data found"}
+
+        logger.info("Starting order sync")
+        placeholder_item = get_placeholder_item()
+        data_len = len(data)
+
+        for i, row in enumerate(data):
+            show_progress(
+                curr_count=i + 1,
+                max_count=data_len,
+                title=_("Sales Order"),
+                desc=f"Updating Sales Order... {i + 1}/{data_len}",
+            )
+            try:
+                create_sales_order(
+                    data=row, placeholder_item=placeholder_item, logger=logger
+                )
+            except Exception as e:
+                logger.error(f"Error creating sales order: {str(e)}")
+                continue
+
+        logger.info("Order sync completed")
+        return {"message": "Sync Completed"}
+    except Exception as e:
+        error_msg = f"Error fetching data for dbcari: {str(e)}"
+        frappe.log_error(error_msg)
+        raise frappe.ValidationError(error_msg)
+
+
 def sync_users(logger) -> dict[str, str]:
     """
     Synchronizes user data from MySQL database to Frappe.
@@ -182,7 +223,7 @@ def sync_orders(logger):
     """Synchronizes orders from MySQL database to Frappe."""
     db_pool = DatabaseConnectionPool()
     try:
-        LIMIT: int = 350
+        LIMIT: int = 10
         query: str = f"SELECT * FROM dbsiparis ORDER BY SAYAC DESC LIMIT {LIMIT}"
         # query: str = "SELECT * FROM dbsiparis WHERE SIPARISNO = 'S501233'"
         data = db_pool.execute_query(query)
