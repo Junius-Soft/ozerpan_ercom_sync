@@ -8,8 +8,10 @@ from frappe import _
 
 from ozerpan_ercom_sync.custom_api.barcode_reader.constants import BarcodeStatus
 from ozerpan_ercom_sync.custom_api.barcode_reader.utils.job_card import (
+    complete_job,
     complete_job_bulk,
     get_job_card,
+    is_job_fully_complete,
     save_with_retry,
     submit_job_card,
     update_job_card_status,
@@ -852,13 +854,31 @@ def finish_with_previous_operations(
     sanal_adet=None,
     tesdetay_name=None,
 ):
+    """
+    Complete all unfinished operations automatically before proceeding with quality control.
+
+    Args:
+        barcode: Barcode to process
+        employee: Employee performing the operation
+        operation: Operation type (must be 'Kalite')
+        quality_data: Quality data for inspection
+        order_no: Order number (optional)
+        poz_no: Position number (optional)
+        sanal_adet: Virtual quantity (optional)
+        tesdetay_name: TesDetay name (optional)
+
+    Returns:
+        Dict containing operation result or error information
+    """
     print("\n\n -- Finish With Previous Operations | START -- \n")
+
     if operation != "Kalite":
         return _create_error_response(
             "Invalid operation parameter. Must be 'Kalite'.", "validation"
         )
 
     try:
+        # First attempt - check for unfinished operations
         result = read_barcode(
             barcode,
             employee,
@@ -870,16 +890,138 @@ def finish_with_previous_operations(
             tesdetay_name,
         )
 
-        if (
+        # If no unfinished operations, return the result directly
+        if not (
             result["status"] == "error"
             and result["error_type"] == "unfinished operations"
         ):
-            print("\n[DEBUG]:", "Ops:", result["unfinished_operations"], "\n")
+            return result
 
-            unfinished_operations = result["unfinished_operations"]
+        print(
+            "\n[DEBUG] Found unfinished operations:",
+            result["unfinished_operations"],
+            "\n",
+        )
+        unfinished_operations = result["unfinished_operations"]
+
+        # Complete all unfinished operations
+        completed_operations = []
+        for operation_info in unfinished_operations:
+            try:
+                job_card_name = operation_info["job_card"]
+                operation_name = operation_info["name"]
+
+                # Skip if job card is missing
+                if operation_info["status"] == "Missing":
+                    print(f"[WARNING] Skipping missing job card: {job_card_name}")
+                    continue
+
+                # Get the job card
+                try:
+                    job_card = frappe.get_doc("Job Card", job_card_name)
+                except frappe.DoesNotExistError:
+                    print(f"[WARNING] Job card not found: {job_card_name}")
+                    continue
+
+                # Skip if job card is already completed or submitted
+                if job_card.docstatus == 1:  # Submitted
+                    print(f"[INFO] Job card already submitted: {job_card_name}")
+                    continue
+
+                print(f"[INFO] Completing job card: {job_card_name} ({operation_name})")
+
+                # Get all barcodes for this job card that need completion
+                all_barcodes = []
+                tesdetay_refs = []
+                job_card_refs = []
+
+                for barcode_entry in job_card.custom_barcodes:
+                    if barcode_entry.status in [
+                        BarcodeStatus.PENDING.value,
+                        BarcodeStatus.IN_PROGRESS.value,
+                    ]:
+                        all_barcodes.append(barcode_entry)
+                        tesdetay_refs.append(barcode_entry.tesdetay_ref)
+                        job_card_refs.append(job_card.name)
+
+                if tesdetay_refs:
+                    # Complete all barcodes in this job card
+                    bulk_update_operation_status(
+                        tesdetay_refs,
+                        job_card_refs,
+                        BarcodeStatus.COMPLETED.value,
+                    )
+
+                    # Update job card status and complete the job
+                    complete_job(job_card, 1)
+
+                    # Check if job is fully complete and submit if needed
+                    if is_job_fully_complete(job_card):
+                        submit_job_card(job_card)
+                        print(f"[INFO] Job card submitted: {job_card_name}")
+                    else:
+                        update_job_card_status(job_card, "On Hold")
+                        print(f"[INFO] Job card set to On Hold: {job_card_name}")
+
+                    # Save the job card
+                    save_with_retry(doc=job_card)
+
+                completed_operations.append(
+                    {
+                        "job_card": job_card_name,
+                        "operation": operation_name,
+                        "completed_barcodes": len(tesdetay_refs),
+                    }
+                )
+
+            except Exception as op_error:
+                print(
+                    f"[ERROR] Failed to complete operation {operation_info['name']}: {str(op_error)}"
+                )
+                continue
+
+        print(f"[INFO] Completed {len(completed_operations)} operations")
+
+        # Commit the changes
+        frappe.db.commit()
+
+        # Now try the quality operation again
+        try:
+            final_result = read_barcode(
+                barcode,
+                employee,
+                operation,
+                quality_data,
+                order_no,
+                poz_no,
+                sanal_adet,
+                tesdetay_name,
+            )
+
+            # Add completion information to the response
+            if final_result["status"] == "success" or final_result.get("status") in [
+                "in_progress",
+                "completed",
+            ]:
+                final_result["completed_previous_operations"] = completed_operations
+
+            return final_result
+
+        except Exception as retry_error:
+            print(
+                f"[ERROR] Failed to process quality operation after completion: {str(retry_error)}"
+            )
+            return _create_error_response(
+                f"Previous operations completed successfully, but quality operation failed: {str(retry_error)}",
+                "quality_operation",
+            )
+
     except Exception as e:
-        print("\n[DEBUG]:", "Error:", e, "\n")
-        return e
+        print(f"[ERROR] Unexpected error in finish_with_previous_operations: {str(e)}")
+        frappe.db.rollback()
+        return _create_error_response(
+            f"Failed to complete previous operations: {str(e)}", "system_error"
+        )
 
 
 @frappe.whitelist()
