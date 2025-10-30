@@ -842,6 +842,47 @@ class BarcodeRequest(TypedDict):
 
 
 @frappe.whitelist()
+def finish_with_previous_operations(
+    barcode,
+    employee,
+    operation,
+    quality_data=None,
+    order_no=None,
+    poz_no=None,
+    sanal_adet=None,
+    tesdetay_name=None,
+):
+    print("\n\n -- Finish With Previous Operations | START -- \n")
+    if operation != "Kalite":
+        return _create_error_response(
+            "Invalid operation parameter. Must be 'Kalite'.", "validation"
+        )
+
+    try:
+        result = read_barcode(
+            barcode,
+            employee,
+            operation,
+            quality_data,
+            order_no,
+            poz_no,
+            sanal_adet,
+            tesdetay_name,
+        )
+
+        if (
+            result["status"] == "error"
+            and result["error_type"] == "unfinished operations"
+        ):
+            print("\n[DEBUG]:", "Ops:", result["unfinished_operations"], "\n")
+
+            unfinished_operations = result["unfinished_operations"]
+    except Exception as e:
+        print("\n[DEBUG]:", "Error:", e, "\n")
+        return e
+
+
+@frappe.whitelist()
 def read_barcode(
     barcode,
     employee,
