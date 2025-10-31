@@ -10,6 +10,7 @@ from ozerpan_ercom_sync.custom_api.barcode_reader.constants import BarcodeStatus
 from ozerpan_ercom_sync.custom_api.barcode_reader.utils.job_card import (
     complete_job_bulk,
     get_job_card,
+    is_job_fully_complete,
     save_with_retry,
     submit_job_card,
     update_job_card_status,
@@ -839,6 +840,575 @@ class BarcodeRequest(TypedDict):
     quality_data: Optional[Dict[str, Any]]
     order_no: Optional[str]
     poz_no: Optional[int]
+
+
+@frappe.whitelist()
+def finish_with_previous_operations(
+    barcode,
+    employee,
+    operation,
+    quality_data=None,
+    order_no=None,
+    poz_no=None,
+    sanal_adet=None,
+    tesdetay_name=None,
+):
+    """
+    Complete all unfinished operations automatically before proceeding with quality control.
+
+    Args:
+        barcode: Barcode to process
+        employee: Employee performing the operation
+        operation: Operation type (must be 'Kalite')
+        quality_data: Quality data for inspection
+        order_no: Order number (optional)
+        poz_no: Position number (optional)
+        sanal_adet: Virtual quantity (optional)
+        tesdetay_name: TesDetay name (optional)
+
+    Returns:
+        Dict containing operation result or error information
+    """
+    print("\n\n -- Finish With Previous Operations | START -- \n")
+
+    if operation != "Kalite":
+        return _create_error_response(
+            "Invalid operation parameter. Must be 'Kalite'.", "validation"
+        )
+
+    try:
+        # First attempt - check for unfinished operations
+        result = read_barcode(
+            barcode,
+            employee,
+            operation,
+            quality_data,
+            order_no,
+            poz_no,
+            sanal_adet,
+            tesdetay_name,
+        )
+
+        # If no unfinished operations, return the result directly
+        if not (
+            result["status"] == "error"
+            and result["error_type"] == "unfinished operations"
+        ):
+            return result
+
+        print(
+            "\n[DEBUG] Found unfinished operations:",
+            result["unfinished_operations"],
+            "\n",
+        )
+        unfinished_operations = result["unfinished_operations"]
+
+        print(f"[DEBUG] Processing {len(unfinished_operations)} unfinished operations")
+        for i, op in enumerate(unfinished_operations):
+            docstatus = op.get("docstatus", 0)
+            operation_status = op.get("operation_status", "Unknown")
+            submission_status = "Submitted" if docstatus == 1 else "Not Submitted"
+            print(
+                f"[DEBUG] Operation {i + 1}: {op['name']} | Job: {op['job_card']} | Status: {op['status']} | DocStatus: {submission_status} | Op Status: {operation_status}"
+            )
+
+        # Sort unfinished operations to try to respect work order sequence
+        # Operations with lower idx (sequence) should be processed first
+        try:
+            unfinished_operations_sorted = sorted(
+                unfinished_operations,
+                key=lambda x: _get_operation_sequence(
+                    x.get("job_card", ""), x.get("name", "")
+                ),
+            )
+            print(
+                f"[DEBUG] Sorted operations by sequence: {[op['name'] for op in unfinished_operations_sorted]}"
+            )
+        except Exception as sort_error:
+            print(f"[WARNING] Could not sort operations by sequence: {str(sort_error)}")
+            unfinished_operations_sorted = unfinished_operations
+
+        # Complete all unfinished operations
+        completed_operations = []
+        for operation_info in unfinished_operations_sorted:
+            try:
+                job_card_name = operation_info["job_card"]
+                operation_name = operation_info["name"]
+
+                print(
+                    f"\n[DEBUG] Processing operation: {operation_name} (Job Card: {job_card_name})"
+                )
+                print(f"[DEBUG] Operation status: {operation_info['status']}")
+                print(f"[DEBUG] Job card docstatus: {operation_info.get('docstatus', 0)}")
+                print(
+                    f"[DEBUG] Operation state status: {operation_info.get('operation_status', 'Unknown')}"
+                )
+                print(
+                    f"[DEBUG] Is corrective: {operation_info.get('is_corrective', 'Unknown')}"
+                )
+
+                # Skip if job card is missing
+                if operation_info["status"] == "Missing":
+                    print(f"[WARNING] Skipping missing job card: {job_card_name}")
+                    continue
+
+                # Skip if job card is already submitted (docstatus = 1)
+                if operation_info.get("docstatus", 0) == 1:
+                    print(f"[INFO] Job card already submitted, skipping: {job_card_name}")
+                    continue
+
+                # Get the job card
+                try:
+                    job_card = frappe.get_doc("Job Card", job_card_name)
+                except frappe.DoesNotExistError:
+                    print(f"[WARNING] Job card not found: {job_card_name}")
+                    continue
+
+                # Skip if job card is already submitted
+                if job_card.docstatus == 1:  # Submitted
+                    print(f"[INFO] Job card already submitted: {job_card_name}")
+                    continue
+
+                # Skip if job card is not in draft state (can't modify)
+                if job_card.docstatus != 0:  # Not draft
+                    print(
+                        f"[WARNING] Job card {job_card_name} is not in draft state, docstatus: {job_card.docstatus}"
+                    )
+                    continue
+
+                print(f"[INFO] Completing job card: {job_card_name} ({operation_name})")
+                print(f"[DEBUG] Job card current status: {job_card.status}")
+                print(f"[DEBUG] Job card docstatus: {job_card.docstatus}")
+                print(f"[DEBUG] Job card for_quantity: {job_card.for_quantity}")
+                print(
+                    f"[DEBUG] Job card total_completed_qty: {job_card.total_completed_qty}"
+                )
+                print(
+                    f"[DEBUG] Number of barcodes in job card: {len(job_card.custom_barcodes)}"
+                )
+
+                # Get all barcodes for this job card that need completion
+                all_barcodes = []
+                tesdetay_refs = []
+                job_card_refs = []
+
+                for barcode_entry in job_card.custom_barcodes:
+                    print(
+                        f"[DEBUG] Barcode {barcode_entry.barcode}: status={barcode_entry.status}, model={barcode_entry.model}"
+                    )
+                    if barcode_entry.status in [
+                        BarcodeStatus.PENDING.value,
+                        BarcodeStatus.IN_PROGRESS.value,
+                    ]:
+                        all_barcodes.append(barcode_entry)
+                        tesdetay_refs.append(barcode_entry.tesdetay_ref)
+                        job_card_refs.append(job_card.name)
+                        print(
+                            f"[DEBUG] Added barcode {barcode_entry.barcode} for completion"
+                        )
+
+                print(f"[DEBUG] Found {len(tesdetay_refs)} barcodes to complete")
+
+                if tesdetay_refs:
+                    print(
+                        f"[INFO] Completing {len(tesdetay_refs)} barcodes for job {job_card_name}"
+                    )
+                    # Complete all barcodes in this job card
+                    bulk_update_operation_status(
+                        tesdetay_refs,
+                        job_card_refs,
+                        BarcodeStatus.COMPLETED.value,
+                    )
+                    print(f"[DEBUG] Bulk update completed for job {job_card_name}")
+
+                    # Handle time logs properly
+                    _complete_job_with_time_logs(job_card, employee)
+
+                    # Save the job card before checking completion
+                    save_with_retry(doc=job_card)
+                    print("[DEBUG] Job card saved after time log completion")
+
+                    # Reload and check if job is fully complete, then submit
+                    job_card.reload()
+                    print(f"[DEBUG] Job card reloaded. Status: {job_card.status}")
+                    print(
+                        f"[DEBUG] Is job fully complete: {is_job_fully_complete(job_card)}"
+                    )
+
+                    if is_job_fully_complete(job_card):
+                        # Set status to completed before submission
+                        job_card.status = "Completed"
+                        job_card.actual_end_date = frappe.utils.now()
+                        save_with_retry(doc=job_card)
+                        print("[DEBUG] Job card status set to Completed")
+
+                        # Submit the job card - ensure it's in correct state
+                        try:
+                            submit_job_card(job_card)
+                            print(
+                                f"[INFO] Job card submitted successfully: {job_card_name}"
+                            )
+                        except Exception as submit_error:
+                            print(
+                                f"[ERROR] Failed to submit job card {job_card_name}: {str(submit_error)}"
+                            )
+                            # Keep it completed but not submitted
+                            job_card.status = "Completed"
+                            save_with_retry(doc=job_card)
+                    else:
+                        # Check if job is actually completed but not reflected properly
+                        total_completed = sum(
+                            log.completed_qty or 0 for log in job_card.time_logs
+                        )
+                        print(
+                            f"[DEBUG] Total completed: {total_completed}, For quantity: {job_card.for_quantity}"
+                        )
+
+                        if total_completed >= job_card.for_quantity:
+                            job_card.status = "Completed"
+                            job_card.actual_end_date = frappe.utils.now()
+                            save_with_retry(doc=job_card)
+                            try:
+                                submit_job_card(job_card)
+                                print(
+                                    f"[INFO] Job card submitted after quantity check: {job_card_name}"
+                                )
+                            except Exception as submit_error:
+                                print(
+                                    f"[ERROR] Failed to submit job card {job_card_name}: {str(submit_error)}"
+                                )
+                        else:
+                            update_job_card_status(job_card, "On Hold")
+                            print(f"[INFO] Job card set to On Hold: {job_card_name}")
+
+                else:
+                    print(
+                        f"[WARNING] No barcodes to complete for job {job_card_name}, but still completing job"
+                    )
+                    # Even if no barcodes to complete, we should still try to complete the job
+                    # This handles cases where the job card exists but has no pending barcodes
+                    _complete_job_with_time_logs(job_card, employee)
+                    save_with_retry(doc=job_card)
+
+                    job_card.reload()
+                    print(
+                        f"[DEBUG] Job card reloaded after completion. Is fully complete: {is_job_fully_complete(job_card)}"
+                    )
+
+                    total_completed = sum(
+                        log.completed_qty or 0 for log in job_card.time_logs
+                    )
+                    if total_completed >= job_card.for_quantity:
+                        job_card.status = "Completed"
+                        job_card.actual_end_date = frappe.utils.now()
+                        save_with_retry(doc=job_card)
+                        try:
+                            submit_job_card(job_card)
+                            print(f"[INFO] Job card submitted: {job_card_name}")
+                        except Exception as submit_error:
+                            print(
+                                f"[ERROR] Failed to submit job card {job_card_name}: {str(submit_error)}"
+                            )
+                    else:
+                        print(
+                            f"[WARNING] Job card {job_card_name} not fully complete after processing. Total: {total_completed}, Required: {job_card.for_quantity}"
+                        )
+
+                completed_operations.append(
+                    {
+                        "job_card": job_card_name,
+                        "operation": operation_name,
+                        "completed_barcodes": len(tesdetay_refs),
+                    }
+                )
+                print(
+                    f"[DEBUG] Added operation {operation_name} to completed operations list"
+                )
+
+            except Exception as op_error:
+                error_message = str(op_error)
+                print(
+                    f"[ERROR] Failed to complete operation {operation_info['name']} (Job: {operation_info['job_card']}): {error_message}"
+                )
+
+                # Check if this is a work order sequence validation error
+                if (
+                    "complete the operation" in error_message
+                    and "before the operation" in error_message
+                ):
+                    print(
+                        f"[WARNING] Sequence validation error for {operation_info['name']} - will retry after other operations"
+                    )
+                    # Mark for retry later
+                    operation_info["_retry_later"] = True
+                    operation_info["_error"] = error_message
+                    continue
+                else:
+                    import traceback
+
+                    print(f"[ERROR] Traceback: {traceback.format_exc()}")
+
+                    # Don't continue immediately, try to rollback this specific operation
+                    try:
+                        frappe.db.rollback()
+                        print(
+                            f"[DEBUG] Rolled back failed operation {operation_info['name']}"
+                        )
+                    except:
+                        pass
+
+                continue
+
+        # Retry operations that failed due to sequence validation
+        retry_operations = [
+            op for op in unfinished_operations_sorted if op.get("_retry_later", False)
+        ]
+
+        if retry_operations:
+            print(
+                f"[INFO] Retrying {len(retry_operations)} operations that had sequence errors"
+            )
+
+            for operation_info in retry_operations:
+                try:
+                    job_card_name = operation_info["job_card"]
+                    operation_name = operation_info["name"]
+
+                    print(
+                        f"[INFO] Retrying operation: {operation_name} (Job Card: {job_card_name})"
+                    )
+
+                    # Get the job card again
+                    try:
+                        job_card = frappe.get_doc("Job Card", job_card_name)
+                    except frappe.DoesNotExistError:
+                        print(f"[WARNING] Job card not found on retry: {job_card_name}")
+                        continue
+
+                    # Skip if already submitted
+                    if job_card.docstatus == 1:
+                        print(
+                            f"[INFO] Job card already submitted on retry: {job_card_name}"
+                        )
+                        continue
+
+                    # Complete the operation
+                    _complete_job_with_time_logs(job_card, employee)
+                    save_with_retry(doc=job_card)
+
+                    job_card.reload()
+                    if is_job_fully_complete(job_card):
+                        job_card.status = "Completed"
+                        job_card.actual_end_date = frappe.utils.now()
+                        save_with_retry(doc=job_card)
+                        submit_job_card(job_card)
+                        print(f"[INFO] Job card submitted on retry: {job_card_name}")
+
+                    completed_operations.append(
+                        {
+                            "job_card": job_card_name,
+                            "operation": operation_name,
+                            "completed_barcodes": 0,
+                            "status": "completed_on_retry",
+                        }
+                    )
+
+                except Exception as retry_error:
+                    print(
+                        f"[ERROR] Retry failed for {operation_info['name']}: {str(retry_error)}"
+                    )
+                    completed_operations.append(
+                        {
+                            "job_card": job_card_name,
+                            "operation": operation_name,
+                            "completed_barcodes": 0,
+                            "status": "failed_on_retry",
+                            "error": str(retry_error),
+                        }
+                    )
+
+        print(f"[INFO] Completed {len(completed_operations)} operations")
+
+        # Commit the changes
+        frappe.db.commit()
+
+        # Now try the quality operation again
+        try:
+            final_result = read_barcode(
+                barcode,
+                employee,
+                operation,
+                quality_data,
+                order_no,
+                poz_no,
+                sanal_adet,
+                tesdetay_name,
+            )
+
+            # Add completion information to the response
+            if final_result["status"] == "success" or final_result.get("status") in [
+                "in_progress",
+                "completed",
+            ]:
+                final_result["completed_previous_operations"] = completed_operations
+
+                # Add summary of failed/retried operations and submission info
+                failed_operations = [
+                    op
+                    for op in completed_operations
+                    if op.get("status") in ["failed_on_retry", "skipped_sequence_error"]
+                ]
+                submitted_operations = [
+                    op
+                    for op in completed_operations
+                    if op.get("status") in ["completed", "completed_on_retry"]
+                ]
+
+                if failed_operations:
+                    final_result["failed_operations"] = failed_operations
+                    print(
+                        f"[WARNING] {len(failed_operations)} operations could not be completed"
+                    )
+
+                if submitted_operations:
+                    print(
+                        f"[INFO] {len(submitted_operations)} operations completed and submitted successfully"
+                    )
+
+            return final_result
+
+        except Exception as retry_error:
+            print(
+                f"[ERROR] Failed to process quality operation after completion: {str(retry_error)}"
+            )
+            return _create_error_response(
+                f"Previous operations completed successfully, but quality operation failed: {str(retry_error)}",
+                "quality_operation",
+            )
+
+    except Exception as e:
+        print(f"[ERROR] Unexpected error in finish_with_previous_operations: {str(e)}")
+        frappe.db.rollback()
+        return _create_error_response(
+            f"Failed to complete previous operations: {str(e)}", "system_error"
+        )
+
+
+def _get_operation_sequence(job_card_name: str, operation_name: str) -> int:
+    """
+    Get the sequence/idx of an operation in its work order.
+    Returns a high number if sequence cannot be determined.
+    """
+    try:
+        if not job_card_name or not operation_name:
+            return 999
+
+        # Get the work order from the job card
+        work_order = frappe.db.get_value("Job Card", job_card_name, "work_order")
+        if not work_order:
+            return 999
+
+        # Get the operation sequence from work order operations
+        sequence = frappe.db.get_value(
+            "Work Order Operation",
+            {"parent": work_order, "operation": operation_name},
+            "idx",
+        )
+
+        return sequence or 999
+
+    except Exception as e:
+        print(
+            f"[WARNING] Could not get sequence for operation {operation_name}: {str(e)}"
+        )
+        return 999
+
+
+def _complete_job_with_time_logs(job_card: Any, employee: str) -> None:
+    """
+    Complete a job card with proper time log handling.
+
+    If there's an open time log, close it with remaining quantity.
+    If no open time log exists, create a new one and close it immediately.
+    """
+    try:
+        # Get current quantities and recalculate from time logs for accuracy
+        for_quantity = job_card.for_quantity or 0
+        total_completed_from_logs = sum(
+            log.completed_qty or 0 for log in job_card.time_logs
+        )
+        remaining_qty = for_quantity - total_completed_from_logs
+
+        print(
+            f"[DEBUG] Job {job_card.name}: for_quantity={for_quantity}, completed_from_logs={total_completed_from_logs}, remaining={remaining_qty}"
+        )
+
+        if remaining_qty <= 0:
+            print(f"[INFO] Job card {job_card.name} already fully completed")
+            # Update the job card totals to match
+            job_card.total_completed_qty = total_completed_from_logs
+            return
+
+        current_time = frappe.utils.now()
+
+        # Check for existing open time log
+        open_time_log = None
+        for time_log in job_card.time_logs:
+            if not time_log.to_time:
+                open_time_log = time_log
+                break
+
+        if open_time_log:
+            # Close existing open time log
+            print(f"[INFO] Closing existing time log for job {job_card.name}")
+            open_time_log.to_time = current_time
+            open_time_log.completed_qty = remaining_qty
+
+            # Calculate time in minutes
+            if open_time_log.from_time:
+                from_time_dt = frappe.utils.get_datetime(open_time_log.from_time)
+                to_time_dt = frappe.utils.get_datetime(current_time)
+                time_diff = to_time_dt - from_time_dt
+                open_time_log.time_in_mins = max(0, int(time_diff.total_seconds() / 60))
+
+        else:
+            # Create new time log and close it immediately
+            print(f"[INFO] Creating new time log for job {job_card.name}")
+            job_card.append(
+                "time_logs",
+                {
+                    "from_time": current_time,
+                    "to_time": current_time,
+                    "employee": employee,
+                    "completed_qty": remaining_qty,
+                    "time_in_mins": 0,  # Immediate completion
+                },
+            )
+
+        # Update job card totals - recalculate from all time logs
+        total_completed_qty = sum(log.completed_qty or 0 for log in job_card.time_logs)
+        job_card.total_completed_qty = total_completed_qty
+
+        # Only set actual end date if job is now fully complete
+        if total_completed_qty >= for_quantity:
+            job_card.actual_end_date = current_time
+
+        # Calculate total time from all time logs
+        total_time = sum(
+            (log.time_in_mins or 0)
+            for log in job_card.time_logs
+            if log.time_in_mins is not None
+        )
+        job_card.total_time_in_mins = total_time
+
+        print(
+            f"[INFO] Completed job {job_card.name} with quantity {remaining_qty}. Total completed: {total_completed_qty}/{for_quantity}"
+        )
+
+    except Exception as e:
+        print(f"[ERROR] Failed to complete job {job_card.name} time logs: {str(e)}")
+        frappe.log_error(f"Error completing job time logs: {str(e)}")
+        raise
 
 
 @frappe.whitelist()

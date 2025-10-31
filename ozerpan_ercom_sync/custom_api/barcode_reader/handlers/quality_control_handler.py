@@ -107,8 +107,28 @@ class QualityControlHandler(OperationHandler):
                 current_barcode,
             )
             if unfinished_operations:
+                # Create detailed error message
+                error_details = []
+                for op in unfinished_operations:
+                    if op.get("status") == "Missing":
+                        error_details.append(f"• {op['name']}: Job card missing")
+                    elif op.get("docstatus", 0) != 1:
+                        error_details.append(
+                            f"• {op['name']}: Job card not submitted (Status: {op['status']})"
+                        )
+                    else:
+                        error_details.append(
+                            f"• {op['name']}: Operation not completed (Status: {op['status']})"
+                        )
+
+                detailed_message = (
+                    "Quality control cannot start - the following operations must be completed AND submitted first:\n\n"
+                    + "\n".join(error_details)
+                    + "\n\nPlease complete and submit all manufacturing operations before starting quality control."
+                )
+
                 raise QualityControlError(
-                    "This sanal adet has unfinished previous operations.",
+                    detailed_message,
                     "unfinished operations",
                     {
                         "unfinished_operations": [
@@ -117,6 +137,8 @@ class QualityControlHandler(OperationHandler):
                                 "job_card": operation.get("job_card"),
                                 "status": operation.get("status"),
                                 "is_corrective": operation.get("is_corrective"),
+                                "docstatus": operation.get("docstatus", 0),
+                                "operation_status": operation.get("operation_status"),
                             }
                             for operation in unfinished_operations
                         ]
@@ -239,28 +261,47 @@ class QualityControlHandler(OperationHandler):
             if op_state.operation in ["Kalite", "Sevkiyat"]:
                 continue
 
-            # Check if this operation state is not completed
-            if op_state.status != BarcodeStatus.COMPLETED.value:
-                try:
-                    job_card = frappe.get_doc("Job Card", op_state.job_card_ref)
+            # Check if this operation is truly finished (completed AND submitted)
+            try:
+                job_card = frappe.get_doc("Job Card", op_state.job_card_ref)
+
+                # Operation is unfinished if:
+                # 1. Operation state is not completed, OR
+                # 2. Job card is not submitted (docstatus != 1)
+                if (
+                    op_state.status != BarcodeStatus.COMPLETED.value
+                    or job_card.docstatus != 1
+                ):
+                    # Determine the actual status
+                    if op_state.status != BarcodeStatus.COMPLETED.value:
+                        actual_status = job_card.status
+                    elif job_card.docstatus != 1:
+                        actual_status = f"{job_card.status} (Not Submitted)"
+                    else:
+                        actual_status = job_card.status
+
                     unfinished_operations.append(
                         {
                             "name": op_state.operation,
                             "job_card": op_state.job_card_ref,
-                            "status": job_card.status,
+                            "status": actual_status,
                             "is_corrective": op_state.is_corrective,
+                            "docstatus": job_card.docstatus,
+                            "operation_status": op_state.status,
                         }
                     )
-                except frappe.DoesNotExistError:
-                    # Job card might not exist, but operation state shows it's not completed
-                    unfinished_operations.append(
-                        {
-                            "name": op_state.operation,
-                            "job_card": op_state.job_card_ref,
-                            "status": "Missing",
-                            "is_corrective": op_state.is_corrective,
-                        }
-                    )
+            except frappe.DoesNotExistError:
+                # Job card doesn't exist - definitely unfinished
+                unfinished_operations.append(
+                    {
+                        "name": op_state.operation,
+                        "job_card": op_state.job_card_ref,
+                        "status": "Missing",
+                        "is_corrective": op_state.is_corrective,
+                        "docstatus": 0,
+                        "operation_status": op_state.status,
+                    }
+                )
 
         return unfinished_operations
 
