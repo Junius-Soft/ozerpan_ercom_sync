@@ -157,14 +157,14 @@ def create_address(data: dict, customer: str, logger) -> dict[str, str]:
     a.address_title = str(data["ADI"])
     a.address_type = "Billing"
     a.address_line1 = str(data["ADRES1"] or data["ADI"])
-    a.address_line2 = str(data["ADRES2"])
+    a.address_line2 = str(data["ADRES2"]) or ""
     a.city = str(data["SEHIR"] or "Bilinmiyor")
     a.country = "Turkey" if frappe.db.exists("Country", "Turkey") else "Türkiye"
-    a.pincode = str(data["POSTAKODU"])
+    a.pincode = str(data["POSTAKODU"]) or ""
     if data.get("EMAIL"):
         a.email_id = str(data.get("EMAIL"))
-    a.phone = str(data["TELEFON1"])
-    a.fax = str(data["FAKS"])
+    a.phone = str(data["TELEFON1"]) if data["TELEFON1"] else ""
+    a.fax = str(data["FAKS"]) if data["FAKS"] else ""
     a.append("links", {"link_doctype": "Customer", "link_name": customer})
     a.insert(ignore_permissions=True)
     logger.info(f"Created address for customer {customer}")
