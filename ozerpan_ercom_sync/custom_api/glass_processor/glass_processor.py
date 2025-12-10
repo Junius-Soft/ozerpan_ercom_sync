@@ -17,19 +17,38 @@ class GlassOperationProcessor:
         raw_quality_data = operation_data.quality_data
         glass_name = operation_data.glass_name
         quality_data = QualityData(**raw_quality_data) if raw_quality_data else None
+        
+        # Validate glass_name exists first
+        if not frappe.db.exists("CamListe", glass_name):
+            frappe.throw(_("Cam bulunamadı: {0}").format(glass_name))
+        
         job_card = get_job_card(glass_name)
         current_glass = self._get_current_glass(job_card, glass_name)
+        
+        # Check if glass was found in job card
+        if not current_glass:
+            # Try to find glass using SQL as fallback
+            current_glass = self._get_current_glass_fallback(glass_name, job_card.name)
+            if not current_glass:
+                frappe.throw(_("Cam, Job Card'da bulunamadı. Glass Name: {0}, Job Card: {1}").format(
+                    glass_name, job_card.name
+                ))
+        
         related_glasses = self._get_related_glasses(job_card, current_glass)
         employee = operation_data["employee"]
 
-        if current_glass.status == "Completed" and not quality_data:
+        # Get status safely (handle both dict and object)
+        glass_status = current_glass.get("status") if isinstance(current_glass, dict) else getattr(current_glass, "status", None)
+        glass_ref = current_glass.get("glass_ref") if isinstance(current_glass, dict) else getattr(current_glass, "glass_ref", None)
+
+        if glass_status == "Completed" and not quality_data:
             return {
                 "status": "error",
                 "message": _("This item is already completed"),
                 "item": current_glass,
             }
 
-        if current_glass.status == "Pending" or current_glass.status == "In Correction":
+        if glass_status == "Pending" or glass_status == "In Correction":
             return self._handle_pending_item(
                 job_card, current_glass, related_glasses, employee
             )
@@ -38,7 +57,7 @@ class GlassOperationProcessor:
                 job_card, current_glass, related_glasses, quality_data, employee
             )
         else:
-            frappe.throw(_("Invalid item status"))
+            frappe.throw(_("Geçersiz cam durumu: {0}. Cam: {1}").format(glass_status or "None", glass_ref or glass_name))
 
     def _handle_quality_control(
         self,
@@ -50,7 +69,10 @@ class GlassOperationProcessor:
     ):
         print("--- Handle Quality Control --")
 
-        if current_glass.status != "Completed":
+        # Get status safely
+        glass_status = current_glass.get("status") if isinstance(current_glass, dict) else getattr(current_glass, "status", None)
+        
+        if glass_status != "Completed":
             return {
                 "status": "Error",
                 "message": _("The item must be completed before quality control."),
@@ -292,11 +314,53 @@ class GlassOperationProcessor:
         return [g for g in job_card.custom_glasses]
 
     def _get_current_glass(self, job_card: any, glass_name: str) -> Dict:
+        """Get current glass from job card's custom_glasses child table"""
+        if not hasattr(job_card, 'custom_glasses') or not job_card.custom_glasses:
+            return None
+        
+        # Try exact match first
         glass = next(
             (g for g in job_card.custom_glasses if g.glass_ref == glass_name),
             None,
         )
+        
+        # If not found, try case-insensitive match (for tablet compatibility)
+        if not glass:
+            glass = next(
+                (g for g in job_card.custom_glasses 
+                 if g.glass_ref and g.glass_ref.lower() == glass_name.lower()),
+                None,
+            )
+        
         return glass
+    
+    def _get_current_glass_fallback(self, glass_name: str, job_card_name: str) -> Optional[Dict]:
+        """Fallback method to get glass data using SQL if not found in job card"""
+        try:
+            # Get glass data directly from database
+            glass_data = frappe.db.sql("""
+                SELECT 
+                    jcg.glass_ref,
+                    jcg.glass_operation_ref,
+                    jcg.sanal_adet,
+                    jcg.status,
+                    cl.order_no,
+                    cl.poz_no,
+                    cl.stok_kodu as stock_code,
+                    cl.quality_data
+                FROM `tabOzerpan Job Card Glass` jcg
+                INNER JOIN `tabCamListe` cl ON cl.name = jcg.glass_ref
+                WHERE jcg.parent = %s 
+                AND (jcg.glass_ref = %s OR jcg.glass_ref LIKE %s)
+                LIMIT 1
+            """, (job_card_name, glass_name, f"%{glass_name}%"), as_dict=True)
+            
+            if glass_data:
+                return glass_data[0]
+        except Exception as e:
+            frappe.log_error(f"Error in _get_current_glass_fallback: {str(e)}")
+        
+        return None
     
     def _update_job_card_status_sql(self, job_card_name: str, status: str, employee: Optional[str] = None) -> None:
         """Optimized SQL-based job card status update"""
