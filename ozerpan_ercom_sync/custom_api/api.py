@@ -167,10 +167,8 @@ def process_glass_operation() -> Dict[str, Any]:
         if not _is_valid_operation(operation_data):
             return _create_error_response("Invalid operation type", "validation")
 
-        glass_item = find_glasses(operation_data)
-        if not glass_item:
-            return _create_error_response("No matching glass item found", "validation")
-
+        # Optimize: Skip find_glasses check - GlassOperationProcessor will handle validation
+        # This eliminates duplicate CamListe loading
         result = GlassOperationProcessor().process(operation_data)
         return _create_success_response("Operation processed successfully", result)
 
