@@ -298,13 +298,47 @@ class GlassOperationProcessor:
         if not glass_refs:
             return
         
-        # Use SQL for efficient batch update
+        # Step 1: Update tabCamListe Job Card status (this is the source for custom_glasses.status)
         frappe.db.sql("""
             UPDATE `tabCamListe Job Card`
             SET status = %s
             WHERE parent IN %s AND job_card_ref = %s
         """, (status, tuple(glass_refs), job_card_name))
+        
+        # Step 2: Update tabOzerpan Job Card Glass status directly
+        # Get glass_operation_ref for each glass_ref
+        glass_operation_refs = frappe.db.sql("""
+            SELECT name, parent
+            FROM `tabCamListe Job Card`
+            WHERE parent IN %s AND job_card_ref = %s
+        """, (tuple(glass_refs), job_card_name), as_dict=True)
+        
+        if glass_operation_refs:
+            operation_ref_names = [ref['name'] for ref in glass_operation_refs]
+            # Update custom_glasses child table status via glass_operation_ref
+            # Note: status is a fetch_from field, but we update the source (glass_operation_ref)
+            # The fetch_from will automatically reflect the change when job card is reloaded
+            frappe.db.sql("""
+                UPDATE `tabOzerpan Job Card Glass`
+                SET modified = NOW()
+                WHERE parent = %s AND glass_operation_ref IN %s
+            """, (job_card_name, tuple(operation_ref_names)))
+        
         frappe.db.commit()
+        
+        # Step 3: Reload and save job card to refresh custom_glasses child table
+        # This ensures the fetch_from fields are updated in the document
+        try:
+            job_card = frappe.get_doc("Job Card", job_card_name)
+            # Reload to get latest data
+            job_card.reload()
+            # Save to update the document (this will refresh fetch_from fields in custom_glasses)
+            job_card.save(ignore_permissions=True)
+            frappe.db.commit()
+        except Exception as e:
+            # If reload/save fails, log but don't fail the operation
+            # The SQL updates are already done, so the data is correct
+            frappe.log_error(f"Error reloading job card {job_card_name} after status update: {str(e)}")
 
     def _is_sanal_adet_group_complete(self, job_card: any, glass: Dict) -> bool:
         # Optimize: Use SQL query instead of iterating through all glasses
@@ -416,7 +450,7 @@ class GlassOperationProcessor:
         frappe.db.commit()
     
     def _complete_job_sql(self, job_card_name: str, qty: int) -> None:
-        """Optimized SQL-based job completion"""
+        """Optimized SQL-based job completion - matches original complete_job behavior"""
         current_time = frappe.utils.now()
         
         # Find open time log
@@ -427,11 +461,53 @@ class GlassOperationProcessor:
         """, (job_card_name,), as_dict=True)
         
         if open_log:
+            # Calculate time_in_mins if from_time exists
+            time_log_info = frappe.db.sql("""
+                SELECT from_time FROM `tabJob Card Time Log`
+                WHERE name = %s
+            """, (open_log[0].name,), as_dict=True)
+            
+            time_in_mins = 0
+            if time_log_info and time_log_info[0].get('from_time'):
+                from_time = time_log_info[0]['from_time']
+                from_time_dt = frappe.utils.get_datetime(from_time)
+                to_time_dt = frappe.utils.get_datetime(current_time)
+                time_diff = to_time_dt - from_time_dt
+                time_in_mins = max(0, int(time_diff.total_seconds() / 60))
+            
+            # Update time log with completed_qty (same as original complete_job)
             frappe.db.sql("""
                 UPDATE `tabJob Card Time Log`
-                SET to_time = %s, completed_qty = %s, modified = %s
+                SET to_time = %s, completed_qty = %s, time_in_mins = %s, modified = %s
                 WHERE name = %s
-            """, (current_time, qty, current_time, open_log[0].name))
+            """, (current_time, qty, time_in_mins, current_time, open_log[0].name))
+            
+            # Recalculate total_completed_qty from all time logs (same as original behavior)
+            # Original code: total_completed_qty = sum(log.completed_qty or 0 for log in job_card.time_logs)
+            total_completed_result = frappe.db.sql("""
+                SELECT COALESCE(SUM(completed_qty), 0) as total_completed
+                FROM `tabJob Card Time Log`
+                WHERE parent = %s AND completed_qty IS NOT NULL
+            """, (job_card_name,), as_dict=True)
+            
+            total_completed_qty = total_completed_result[0].total_completed if total_completed_result else 0
+            
+            # Update total_time_in_mins (same as original behavior)
+            total_time_result = frappe.db.sql("""
+                SELECT COALESCE(SUM(time_in_mins), 0) as total_time
+                FROM `tabJob Card Time Log`
+                WHERE parent = %s AND time_in_mins IS NOT NULL
+            """, (job_card_name,), as_dict=True)
+            
+            total_time_in_mins = total_time_result[0].total_time if total_time_result else 0
+            
+            # Update job card with recalculated total_completed_qty and total_time_in_mins
+            # This matches the original behavior where total_completed_qty is recalculated from time logs
+            frappe.db.sql("""
+                UPDATE `tabJob Card`
+                SET total_completed_qty = %s, total_time_in_mins = %s, modified = %s
+                WHERE name = %s
+            """, (total_completed_qty, total_time_in_mins, current_time, job_card_name))
         
         frappe.db.commit()
     
