@@ -1,6 +1,8 @@
-from enum import StrEnum
+from enum import Enum
 
 
-class MarketOrderOperation(StrEnum):
+class MarketOrderOperation(str,Enum):
     Panjur = "Panjur"
     Sineklik = "Sineklik"
+    Kepenk = "Kepenk"
+    Cam_Balkon = "Cam Balkon"

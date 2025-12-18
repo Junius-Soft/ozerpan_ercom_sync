@@ -66,6 +66,7 @@ class BarcodeReader:
             operation=operation,
             production_item=f"{tesdetay.get('siparis_no')}-{tesdetay.get('poz_no')}",
             barcode=barcode,
+            tesdetay_ref=tesdetay.get("name"),
         )
 
         poz_data = get_poz_data(

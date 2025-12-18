@@ -53,7 +53,7 @@ def create_sales_order(data):
     try:
         ercom_sales_order = frappe.get_doc("Sales Order", data.get("order_no"))
 
-    except frappe.DoesNotExistError as e:
+    except Exception as e:
         print(f"Ercom Sales Order not found. Error: {e}")
         ercom_sales_order = None
 

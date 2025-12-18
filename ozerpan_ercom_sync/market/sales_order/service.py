@@ -210,7 +210,7 @@ def _add_operations_to_bom(bom: any, product_type: str):
             }
         )
 
-        quality_operation_doc = frappe.get_doc("Operation", "Kalite")
+        quality_operation_doc = frappe.get_doc("Operation", "Alenda Kalite")
         operation_items.append(
             {
                 "operation": quality_operation_doc.name,
