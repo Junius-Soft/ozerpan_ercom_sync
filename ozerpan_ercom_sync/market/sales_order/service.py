@@ -197,7 +197,7 @@ def generate_market_order_no(ercom_sales_order: str | None = None):
 
 
 def _add_operations_to_bom(bom: any, product_type: str):
-    operation_name = MarketOrderOperation[product_type].value
+    operation_name = MarketOrderOperation(product_type).value
     operation_items = []
 
     try:
