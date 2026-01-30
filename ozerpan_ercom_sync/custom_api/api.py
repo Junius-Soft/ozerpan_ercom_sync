@@ -115,6 +115,7 @@ def revert_latest_barcode_operation(
         barcode=barcode,
         operation=operation,
         production_item=f"{tesdetay.get('siparis_no')}-{tesdetay.get('poz_no')}",
+        tesdetay_ref=tesdetay.get("name"),
     )
 
     current_os = None
@@ -167,10 +168,8 @@ def process_glass_operation() -> Dict[str, Any]:
         if not _is_valid_operation(operation_data):
             return _create_error_response("Invalid operation type", "validation")
 
-        glass_item = find_glasses(operation_data)
-        if not glass_item:
-            return _create_error_response("No matching glass item found", "validation")
-
+        # Optimize: Skip find_glasses check - GlassOperationProcessor will handle validation
+        # This eliminates duplicate CamListe loading
         result = GlassOperationProcessor().process(operation_data)
         return _create_success_response("Operation processed successfully", result)
 
@@ -889,10 +888,10 @@ def finish_with_previous_operations(
             tesdetay_name,
         )
 
-        # If no unfinished operations, return the result directly
+        # If no unfinished operations (or error_type not provided), return the result directly
         if not (
-            result["status"] == "error"
-            and result["error_type"] == "unfinished operations"
+            result.get("status") == "error"
+            and result.get("error_type") == "unfinished operations"
         ):
             return result
 
@@ -1559,7 +1558,8 @@ def _handle_barcode_error(error: Exception) -> Dict[str, Any]:
 
 def _handle_system_error(error: Exception) -> Dict[str, Any]:
     """Handle general system errors"""
-    frappe.log_error(f"Error reading barcode: {str(error)}", "Barcode Reader Error")
+    error_message = f"Error reading barcode: {str(error)}"
+    frappe.log_error(title="Barcode Reader Error", message=error_message)
     return {"status": "error", "message": str(error), "error_type": "system"}
 
 

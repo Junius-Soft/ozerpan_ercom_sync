@@ -7,13 +7,7 @@ from frappe import _
 from ozerpan_ercom_sync.custom_api.barcode_reader.models.quality_data import QualityData
 from ozerpan_ercom_sync.custom_api.glass_processor.utils import get_job_card
 
-from ..barcode_reader.utils.job_card import (
-    complete_job,
-    is_job_fully_complete,
-    save_with_retry,
-    submit_job_card,
-    update_job_card_status,
-)
+# Removed unused imports - using SQL-based functions instead
 from .types import GlassOperationRequest
 
 
@@ -23,19 +17,38 @@ class GlassOperationProcessor:
         raw_quality_data = operation_data.quality_data
         glass_name = operation_data.glass_name
         quality_data = QualityData(**raw_quality_data) if raw_quality_data else None
+        
+        # Validate glass_name exists first
+        if not frappe.db.exists("CamListe", glass_name):
+            frappe.throw(_("Cam bulunamadı: {0}").format(glass_name))
+        
         job_card = get_job_card(glass_name)
         current_glass = self._get_current_glass(job_card, glass_name)
+        
+        # Check if glass was found in job card
+        if not current_glass:
+            # Try to find glass using SQL as fallback
+            current_glass = self._get_current_glass_fallback(glass_name, job_card.name)
+            if not current_glass:
+                frappe.throw(_("Cam, Job Card'da bulunamadı. Glass Name: {0}, Job Card: {1}").format(
+                    glass_name, job_card.name
+                ))
+        
         related_glasses = self._get_related_glasses(job_card, current_glass)
         employee = operation_data["employee"]
 
-        if current_glass.status == "Completed" and not quality_data:
+        # Get status safely (handle both dict and object)
+        glass_status = current_glass.get("status") if isinstance(current_glass, dict) else getattr(current_glass, "status", None)
+        glass_ref = current_glass.get("glass_ref") if isinstance(current_glass, dict) else getattr(current_glass, "glass_ref", None)
+
+        if glass_status == "Completed" and not quality_data:
             return {
                 "status": "error",
                 "message": _("This item is already completed"),
                 "item": current_glass,
             }
 
-        if current_glass.status == "Pending" or current_glass.status == "In Correction":
+        if glass_status == "Pending" or glass_status == "In Correction":
             return self._handle_pending_item(
                 job_card, current_glass, related_glasses, employee
             )
@@ -44,7 +57,7 @@ class GlassOperationProcessor:
                 job_card, current_glass, related_glasses, quality_data, employee
             )
         else:
-            frappe.throw(_("Invalid item status"))
+            frappe.throw(_("Geçersiz cam durumu: {0}. Cam: {1}").format(glass_status or "None", glass_ref or glass_name))
 
     def _handle_quality_control(
         self,
@@ -56,7 +69,10 @@ class GlassOperationProcessor:
     ):
         print("--- Handle Quality Control --")
 
-        if current_glass.status != "Completed":
+        # Get status safely
+        glass_status = current_glass.get("status") if isinstance(current_glass, dict) else getattr(current_glass, "status", None)
+        
+        if glass_status != "Completed":
             return {
                 "status": "Error",
                 "message": _("The item must be completed before quality control."),
@@ -91,8 +107,9 @@ class GlassOperationProcessor:
             job_card, current_glass, quality_data
         )
 
-        glass_quality_data = current_glass.quality_data
-        job_card.save(ignore_permissions=True)
+        # Get quality data directly from database
+        glass_quality_data = frappe.db.get_value("CamListe", current_glass.glass_ref, "quality_data")
+        # Removed job_card.save() - not needed as we're using SQL updates
 
         return {
             "status": "failed",
@@ -111,6 +128,16 @@ class GlassOperationProcessor:
     ) -> Dict[str, any]:
         try:
             print("\n\n\n-- Create Correction Job --")
+
+            # Optimize: Update glass status before creating correction job to avoid extra save
+            # Use direct SQL for better performance
+            if quality_data:
+                frappe.db.set_value(
+                    "CamListe", 
+                    current_glass.glass_ref, 
+                    "quality_data", 
+                    json.dumps(quality_data.__dict__)
+                )
 
             correction_job = frappe.new_doc("Job Card")
             correction_job.update(
@@ -141,13 +168,17 @@ class GlassOperationProcessor:
                 }
             ]
 
-            self.update_glass_job_card_status(
-                glass_ref=current_glass.glass_ref,
-                job_card_name=quality_job_card.name,
-                quality_data=quality_data,
-            )
             correction_job.set("custom_glasses", glasses)
             correction_job.insert()
+            
+            # Update glass job card status after correction job is created
+            frappe.db.sql("""
+                UPDATE `tabCamListe Job Card`
+                SET status = 'In Correction'
+                WHERE parent = %s AND job_card_ref = %s
+            """, (current_glass.glass_ref, quality_job_card.name))
+            frappe.db.commit()
+            
             return correction_job
         except Exception as e:
             frappe.log_error(f"Error creating correction job: {str(e)}")
@@ -162,20 +193,28 @@ class GlassOperationProcessor:
     ) -> Dict[str, Any]:
         print("--- Handle Pending Item ---")
 
+        # Optimize: Use SQL for status updates instead of document save
         if job_card.status != "Work In Progress":
-            update_job_card_status(job_card, "Work In Progress", employee)
+            self._update_job_card_status_sql(job_card.name, "Work In Progress", employee)
 
-        self._complete_glasses(job_card, [current_glass])
-        if self._is_sanal_adet_group_complete(job_card, current_glass):
-            complete_job(job_card, 1)
-            if is_job_fully_complete(job_card):
-                submit_job_card(job_card)
+        # Update glass status directly with SQL
+        self._batch_update_glass_status([current_glass.glass_ref], job_card.name, "Completed")
+        
+        # Check completion status using SQL query (faster than loading all glasses)
+        if self._is_sanal_adet_group_complete_sql(job_card.name, current_glass.sanal_adet):
+            # Complete job using SQL
+            self._complete_job_sql(job_card.name, 1)
+            
+            # Check if fully complete using SQL
+            if self._is_job_fully_complete_sql(job_card.name):
+                self._submit_job_card_sql(job_card.name)
             else:
-                update_job_card_status(job_card, "On Hold")
+                self._update_job_card_status_sql(job_card.name, "On Hold", None)
         else:
-            update_job_card_status(job_card, "On Hold")
+            self._update_job_card_status_sql(job_card.name, "On Hold", None)
 
-        glass_quality_data = current_glass.quality_data
+        # Get quality data directly from database
+        glass_quality_data = frappe.db.get_value("CamListe", current_glass.glass_ref, "quality_data")
 
         return {
             "status": "completed",
@@ -193,17 +232,24 @@ class GlassOperationProcessor:
     ) -> Dict[str, Any]:
         print("\n\n\n-- Handle In Progress --")
 
-        self._complete_glasses(job_card, [current_glass])
-        if self._is_sanal_adet_group_complete(job_card, current_glass):
-            complete_job(job_card, 1)
-            if is_job_fully_complete(job_card):
-                submit_job_card(job_card)
+        # Update glass status directly with SQL
+        self._batch_update_glass_status([current_glass.glass_ref], job_card.name, "Completed")
+        
+        # Check completion status using SQL query
+        if self._is_sanal_adet_group_complete_sql(job_card.name, current_glass.sanal_adet):
+            # Complete job using SQL
+            self._complete_job_sql(job_card.name, 1)
+            
+            # Check if fully complete using SQL
+            if self._is_job_fully_complete_sql(job_card.name):
+                self._submit_job_card_sql(job_card.name)
             else:
-                update_job_card_status(job_card, "On Hold")
+                self._update_job_card_status_sql(job_card.name, "On Hold", None)
         else:
-            update_job_card_status(job_card, "On Hold")
+            self._update_job_card_status_sql(job_card.name, "On Hold", None)
 
-        glass_quality_data = current_glass.quality_data
+        # Get quality data directly from database
+        glass_quality_data = frappe.db.get_value("CamListe", current_glass.glass_ref, "quality_data")
 
         return {
             "status": "completed",
@@ -215,17 +261,12 @@ class GlassOperationProcessor:
         }
 
     def _complete_glasses(self, job_card: Any, glasses: List[Dict]):
-        for glass in glasses:
-            glass_row = next(
-                (g for g in job_card.custom_glasses if g.glass_ref == glass.glass_ref),
-                None,
-            )
-            if glass_row:
-                self.update_glass_job_card_status(
-                    glass.glass_ref, job_card.name, "Completed"
-                )
-
-        save_with_retry(job_card)
+        # Optimize: Batch update glass statuses using SQL only - no document save needed
+        glass_refs_to_update = [glass.glass_ref for glass in glasses]
+        
+        if glass_refs_to_update:
+            self._batch_update_glass_status(glass_refs_to_update, job_card.name, "Completed")
+        # Removed save_with_retry - SQL updates don't need document save
 
     def update_glass_job_card_status(
         self,
@@ -234,30 +275,286 @@ class GlassOperationProcessor:
         status: Optional[str] = None,
         quality_data: Optional[QualityData] = None,
     ) -> None:
-        glass = frappe.get_doc("CamListe", glass_ref)
-        if quality_data:
-            glass.quality_data = json.dumps(quality_data.__dict__)
-
+        # Optimize: Use direct SQL update for better performance
         if status:
-            for jc in glass.job_cards:
-                if jc.job_card_ref == job_card_name:
-                    jc.status = status
-                    glass.save(ignore_permissions=True)
-                    break
+            frappe.db.sql("""
+                UPDATE `tabCamListe Job Card`
+                SET status = %s
+                WHERE parent = %s AND job_card_ref = %s
+            """, (status, glass_ref, job_card_name))
+            frappe.db.commit()
+        
+        if quality_data:
+            frappe.db.set_value("CamListe", glass_ref, "quality_data", json.dumps(quality_data.__dict__))
+            frappe.db.commit()
+    
+    def _batch_update_glass_status(
+        self,
+        glass_refs: List[str],
+        job_card_name: str,
+        status: str,
+    ) -> None:
+        """Optimized batch update for multiple glass statuses"""
+        if not glass_refs:
+            return
+        
+        # Step 1: Update tabCamListe Job Card status (this is the source for custom_glasses.status)
+        frappe.db.sql("""
+            UPDATE `tabCamListe Job Card`
+            SET status = %s
+            WHERE parent IN %s AND job_card_ref = %s
+        """, (status, tuple(glass_refs), job_card_name))
+        
+        # Step 2: Update tabOzerpan Job Card Glass status directly
+        # Get glass_operation_ref for each glass_ref
+        glass_operation_refs = frappe.db.sql("""
+            SELECT name, parent
+            FROM `tabCamListe Job Card`
+            WHERE parent IN %s AND job_card_ref = %s
+        """, (tuple(glass_refs), job_card_name), as_dict=True)
+        
+        if glass_operation_refs:
+            operation_ref_names = [ref['name'] for ref in glass_operation_refs]
+            # Update custom_glasses child table status via glass_operation_ref
+            # Note: status is a fetch_from field, but we update the source (glass_operation_ref)
+            # The fetch_from will automatically reflect the change when job card is reloaded
+            frappe.db.sql("""
+                UPDATE `tabOzerpan Job Card Glass`
+                SET modified = NOW()
+                WHERE parent = %s AND glass_operation_ref IN %s
+            """, (job_card_name, tuple(operation_ref_names)))
+        
+        frappe.db.commit()
+        
+        # Step 3: Reload and save job card to refresh custom_glasses child table
+        # This ensures the fetch_from fields are updated in the document
+        try:
+            job_card = frappe.get_doc("Job Card", job_card_name)
+            # Reload to get latest data
+            job_card.reload()
+            # Save to update the document (this will refresh fetch_from fields in custom_glasses)
+            job_card.save(ignore_permissions=True)
+            frappe.db.commit()
+        except Exception as e:
+            # If reload/save fails, log but don't fail the operation
+            # The SQL updates are already done, so the data is correct
+            frappe.log_error(f"Error reloading job card {job_card_name} after status update: {str(e)}")
 
     def _is_sanal_adet_group_complete(self, job_card: any, glass: Dict) -> bool:
-        job_card = frappe.get_doc("Job Card", job_card.name)
-        related_glasses = [
-            g for g in job_card.custom_glasses if g.sanal_adet == glass.sanal_adet
-        ]
-        return all(g.status == "Completed" for g in related_glasses)
+        # Optimize: Use SQL query instead of iterating through all glasses
+        return self._is_sanal_adet_group_complete_sql(job_card.name, glass.sanal_adet)
 
     def _get_related_glasses(self, job_card: Any, current_glass: Dict) -> List[Dict]:
         return [g for g in job_card.custom_glasses]
 
     def _get_current_glass(self, job_card: any, glass_name: str) -> Dict:
+        """Get current glass from job card's custom_glasses child table"""
+        if not hasattr(job_card, 'custom_glasses') or not job_card.custom_glasses:
+            return None
+        
+        # Try exact match first
         glass = next(
             (g for g in job_card.custom_glasses if g.glass_ref == glass_name),
             None,
         )
+        
+        # If not found, try case-insensitive match (for tablet compatibility)
+        if not glass:
+            glass = next(
+                (g for g in job_card.custom_glasses 
+                 if g.glass_ref and g.glass_ref.lower() == glass_name.lower()),
+                None,
+            )
+        
         return glass
+    
+    def _get_current_glass_fallback(self, glass_name: str, job_card_name: str) -> Optional[Dict]:
+        """Fallback method to get glass data using SQL if not found in job card"""
+        try:
+            # Get glass data directly from database
+            glass_data = frappe.db.sql("""
+                SELECT 
+                    jcg.glass_ref,
+                    jcg.glass_operation_ref,
+                    jcg.sanal_adet,
+                    jcg.status,
+                    cl.order_no,
+                    cl.poz_no,
+                    cl.stok_kodu as stock_code,
+                    cl.quality_data
+                FROM `tabOzerpan Job Card Glass` jcg
+                INNER JOIN `tabCamListe` cl ON cl.name = jcg.glass_ref
+                WHERE jcg.parent = %s 
+                AND (jcg.glass_ref = %s OR jcg.glass_ref LIKE %s)
+                LIMIT 1
+            """, (job_card_name, glass_name, f"%{glass_name}%"), as_dict=True)
+            
+            if glass_data:
+                return glass_data[0]
+        except Exception as e:
+            frappe.log_error(f"Error in _get_current_glass_fallback: {str(e)}")
+        
+        return None
+    
+    def _update_job_card_status_sql(self, job_card_name: str, status: str, employee: Optional[str] = None) -> None:
+        """Optimized SQL-based job card status update"""
+        current_time = frappe.utils.now()
+        
+        if status == "Work In Progress" and employee:
+            # Check if actual_start_date exists
+            actual_start_date = frappe.db.get_value("Job Card", job_card_name, "actual_start_date")
+            
+            if not actual_start_date:
+                frappe.db.sql("""
+                    UPDATE `tabJob Card`
+                    SET status = %s, actual_start_date = %s, modified = %s
+                    WHERE name = %s
+                """, (status, current_time, current_time, job_card_name))
+            else:
+                frappe.db.sql("""
+                    UPDATE `tabJob Card`
+                    SET status = %s, modified = %s
+                    WHERE name = %s
+                """, (status, current_time, job_card_name))
+            
+            # Add time log entry
+            max_idx = frappe.db.sql("""
+                SELECT COALESCE(MAX(idx), 0) + 1 as next_idx
+                FROM `tabJob Card Time Log`
+                WHERE parent = %s
+            """, (job_card_name,), as_dict=True)
+            
+            next_idx = max_idx[0].next_idx if max_idx else 1
+            
+            frappe.db.sql("""
+                INSERT INTO `tabJob Card Time Log` 
+                (name, parent, parenttype, parentfield, idx, from_time, employee, creation, modified, docstatus)
+                VALUES (%s, %s, 'Job Card', 'time_logs', %s, %s, %s, %s, %s, 0)
+            """, (
+                frappe.generate_hash(),
+                job_card_name,
+                next_idx,
+                current_time,
+                employee,
+                current_time,
+                current_time,
+            ))
+        else:
+            # For other statuses, just update status
+            frappe.db.sql("""
+                UPDATE `tabJob Card`
+                SET status = %s, modified = %s
+                WHERE name = %s
+            """, (status, current_time, job_card_name))
+        
+        frappe.db.commit()
+    
+    def _complete_job_sql(self, job_card_name: str, qty: int) -> None:
+        """Optimized SQL-based job completion - matches original complete_job behavior"""
+        current_time = frappe.utils.now()
+        
+        # Find open time log
+        open_log = frappe.db.sql("""
+            SELECT name FROM `tabJob Card Time Log`
+            WHERE parent = %s AND to_time IS NULL
+            ORDER BY idx DESC LIMIT 1
+        """, (job_card_name,), as_dict=True)
+        
+        if open_log:
+            # Calculate time_in_mins if from_time exists
+            time_log_info = frappe.db.sql("""
+                SELECT from_time FROM `tabJob Card Time Log`
+                WHERE name = %s
+            """, (open_log[0].name,), as_dict=True)
+            
+            time_in_mins = 0
+            if time_log_info and time_log_info[0].get('from_time'):
+                from_time = time_log_info[0]['from_time']
+                from_time_dt = frappe.utils.get_datetime(from_time)
+                to_time_dt = frappe.utils.get_datetime(current_time)
+                time_diff = to_time_dt - from_time_dt
+                time_in_mins = max(0, int(time_diff.total_seconds() / 60))
+            
+            # Update time log with completed_qty (same as original complete_job)
+            frappe.db.sql("""
+                UPDATE `tabJob Card Time Log`
+                SET to_time = %s, completed_qty = %s, time_in_mins = %s, modified = %s
+                WHERE name = %s
+            """, (current_time, qty, time_in_mins, current_time, open_log[0].name))
+            
+            # Recalculate total_completed_qty from all time logs (same as original behavior)
+            # Original code: total_completed_qty = sum(log.completed_qty or 0 for log in job_card.time_logs)
+            total_completed_result = frappe.db.sql("""
+                SELECT COALESCE(SUM(completed_qty), 0) as total_completed
+                FROM `tabJob Card Time Log`
+                WHERE parent = %s AND completed_qty IS NOT NULL
+            """, (job_card_name,), as_dict=True)
+            
+            total_completed_qty = total_completed_result[0].total_completed if total_completed_result else 0
+            
+            # Update total_time_in_mins (same as original behavior)
+            total_time_result = frappe.db.sql("""
+                SELECT COALESCE(SUM(time_in_mins), 0) as total_time
+                FROM `tabJob Card Time Log`
+                WHERE parent = %s AND time_in_mins IS NOT NULL
+            """, (job_card_name,), as_dict=True)
+            
+            total_time_in_mins = total_time_result[0].total_time if total_time_result else 0
+            
+            # Update job card with recalculated total_completed_qty and total_time_in_mins
+            # This matches the original behavior where total_completed_qty is recalculated from time logs
+            frappe.db.sql("""
+                UPDATE `tabJob Card`
+                SET total_completed_qty = %s, total_time_in_mins = %s, modified = %s
+                WHERE name = %s
+            """, (total_completed_qty, total_time_in_mins, current_time, job_card_name))
+        
+        frappe.db.commit()
+    
+    def _is_job_fully_complete_sql(self, job_card_name: str) -> bool:
+        """Check job completion using SQL"""
+        result = frappe.db.sql("""
+            SELECT 
+                COALESCE(SUM(completed_qty), 0) as total_completed,
+                (SELECT for_quantity FROM `tabJob Card` WHERE name = %s) as for_quantity
+            FROM `tabJob Card Time Log`
+            WHERE parent = %s AND completed_qty IS NOT NULL
+        """, (job_card_name, job_card_name), as_dict=True)
+        
+        if result and result[0]:
+            return result[0].total_completed >= (result[0].for_quantity or 0)
+        return False
+    
+    def _is_sanal_adet_group_complete_sql(self, job_card_name: str, sanal_adet: str) -> bool:
+        """Check sanal_adet group completion using SQL"""
+        result = frappe.db.sql("""
+            SELECT COUNT(*) as total, 
+                   SUM(CASE WHEN status = 'Completed' THEN 1 ELSE 0 END) as completed
+            FROM `tabOzerpan Job Card Glass`
+            WHERE parent = %s AND sanal_adet = %s
+        """, (job_card_name, sanal_adet), as_dict=True)
+        
+        if result and result[0]:
+            return result[0].total > 0 and result[0].completed == result[0].total
+        return False
+    
+    def _submit_job_card_sql(self, job_card_name: str) -> None:
+        """Optimized SQL-based job card submission"""
+        current_time = frappe.utils.now()
+        
+        # Update status to Completed
+        frappe.db.sql("""
+            UPDATE `tabJob Card`
+            SET status = 'Completed', actual_end_date = %s, modified = %s
+            WHERE name = %s
+        """, (current_time, current_time, job_card_name))
+        
+        # Submit using document (required for Frappe workflow)
+        try:
+            job_card = frappe.get_doc("Job Card", job_card_name)
+            job_card.submit()
+        except Exception as e:
+            frappe.log_error(f"Error submitting job card {job_card_name}: {str(e)}")
+            raise
+        
+        frappe.db.commit()

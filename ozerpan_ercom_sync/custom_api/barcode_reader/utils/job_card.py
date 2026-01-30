@@ -15,7 +15,10 @@ def complete_job(job_card: Any, qty: int) -> None:
                 break
         save_with_retry(job_card)
     except Exception as e:
-        frappe.log_error(f"Error completing job: {str(e)}")
+        frappe.log_error(
+            title="Job Completion Error",
+            message=f"Job Card: {job_card.name}\n\nError: {str(e)}"
+        )
         raise
 
 
@@ -53,8 +56,15 @@ def submit_job_card(job_card: Any) -> None:
         update_job_card_status(job_card, "Completed")
         job_card.submit()
     except Exception as e:
-        frappe.log_error(f"Error submitting job card {job_card.name}: {str(e)}")
-        frappe.throw(f"Error occured: {str(e)}")
+        error_msg = str(e)
+        # Truncate error message to prevent title length issues
+        short_error = error_msg[:100] + "..." if len(error_msg) > 100 else error_msg
+        
+        frappe.log_error(
+            title="Job Card Submit Error",
+            message=f"Job Card: {job_card.name}\n\nError: {error_msg}"
+        )
+        frappe.throw(f"Error occurred: {short_error}")
 
 
 def is_job_fully_complete(job_card: Any) -> bool:
@@ -62,7 +72,9 @@ def is_job_fully_complete(job_card: Any) -> bool:
     return total_completed >= job_card.for_quantity
 
 
-def get_job_card(operation: str, production_item: str, barcode: str) -> Any:
+def get_job_card(
+    operation: str, production_item: str, barcode: str, tesdetay_ref: Optional[str] = None
+) -> Any:
     # First get all active job cards matching the basic criteria
     active_job_cards = frappe.get_all(
         "Job Card",
@@ -74,7 +86,15 @@ def get_job_card(operation: str, production_item: str, barcode: str) -> Any:
         as_list=True,
     )
 
-    # Try to find an active job card with the matching barcode
+    def _matches_barcode(custom_barcode):
+        if tesdetay_ref:
+            return (
+                custom_barcode.barcode == barcode
+                and custom_barcode.tesdetay_ref == tesdetay_ref
+            )
+        return custom_barcode.barcode == barcode
+
+    # Try to find an active job card with the matching barcode (and tesdetay if given)
     if active_job_cards:
         for job_card_name in active_job_cards:
             job_card = frappe.get_doc("Job Card", job_card_name[0])
@@ -82,10 +102,26 @@ def get_job_card(operation: str, production_item: str, barcode: str) -> Any:
             # Check if the job card contains the barcode in its custom_barcodes child table
             if job_card.custom_barcodes:
                 for custom_barcode in job_card.custom_barcodes:
-                    if (
-                        custom_barcode.barcode == barcode
-                        and custom_barcode.status != "Completed"
-                    ):
+                    if _matches_barcode(custom_barcode) and custom_barcode.status != "Completed":
+                        return job_card
+
+    # Prefer an active job card for the same barcode that is already in progress, even
+    # if tesdetay_ref is missing/ambiguous.
+    if active_job_cards:
+        for job_card_name in active_job_cards:
+            job_card = frappe.get_doc("Job Card", job_card_name[0])
+            if job_card.custom_barcodes:
+                for custom_barcode in job_card.custom_barcodes:
+                    if custom_barcode.barcode == barcode and custom_barcode.status == "In Progress":
+                        return job_card
+
+    # Next prefer an active job card for the same barcode that is pending
+    if active_job_cards:
+        for job_card_name in active_job_cards:
+            job_card = frappe.get_doc("Job Card", job_card_name[0])
+            if job_card.custom_barcodes:
+                for custom_barcode in job_card.custom_barcodes:
+                    if custom_barcode.barcode == barcode and custom_barcode.status == "Pending":
                         return job_card
 
     # If no active job card with matching barcode found, look for completed job cards
@@ -105,12 +141,13 @@ def get_job_card(operation: str, production_item: str, barcode: str) -> Any:
         # Check if the job card contains the barcode in its custom_barcodes child table
         if job_card.custom_barcodes:
             for custom_barcode in job_card.custom_barcodes:
-                if custom_barcode.barcode == barcode:
+                if _matches_barcode(custom_barcode):
                     return job_card
 
     # If no job card with matching barcode found, raise error
+    extra_info = f" for TesDetay {tesdetay_ref}" if tesdetay_ref else ""
     raise frappe.ValidationError(
-        f"No job card found with barcode {barcode} for {operation} - {production_item}"
+        f"No job card found with barcode {barcode} for {operation} - {production_item}{extra_info}"
     )
 
 
@@ -268,7 +305,10 @@ def complete_job_bulk(job_card_names: list, employee: str) -> None:
 
     except Exception as e:
         frappe.db.rollback()
-        frappe.log_error(f"Error completing jobs in bulk: {str(e)}")
+        frappe.log_error(
+            title="Bulk Job Completion Error",
+            message=f"Job Cards: {', '.join(job_card_names)}\n\nError: {str(e)}"
+        )
         raise
 
 
@@ -439,7 +479,10 @@ def update_job_card_status_bulk(
 
     except Exception as e:
         frappe.db.rollback()
-        frappe.log_error(f"Error updating job card status in bulk: {str(e)}")
+        frappe.log_error(
+            title="Bulk Status Update Error",
+            message=f"Job Cards: {', '.join(job_card_names)}\n\nError: {str(e)}"
+        )
         raise
 
 

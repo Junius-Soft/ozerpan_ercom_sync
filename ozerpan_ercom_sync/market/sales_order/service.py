@@ -197,7 +197,7 @@ def generate_market_order_no(ercom_sales_order: str | None = None):
 
 
 def _add_operations_to_bom(bom: any, product_type: str):
-    operation_name = MarketOrderOperation[product_type].value
+    operation_name = MarketOrderOperation(product_type).value
     operation_items = []
 
     try:
@@ -210,7 +210,7 @@ def _add_operations_to_bom(bom: any, product_type: str):
             }
         )
 
-        quality_operation_doc = frappe.get_doc("Operation", "Kalite")
+        quality_operation_doc = frappe.get_doc("Operation", "Alenda Kalite")
         operation_items.append(
             {
                 "operation": quality_operation_doc.name,

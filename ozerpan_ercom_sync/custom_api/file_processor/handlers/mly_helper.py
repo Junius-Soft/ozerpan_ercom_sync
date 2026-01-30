@@ -27,16 +27,21 @@ MIDDLE_OPERATIONS = {
     },
     "ACILI": {
         "KASA": ["Sürme Hazırlık"],
-        "KASA_KANAT": ["Sürme Hazırlık", "Kanat Hazırlık", "Kanat Bağlama"],
+        "KASA_KANAT": [
+            "Kaynak Köşe Temizleme",
+            "Sürme Hazırlık",
+            "Kanat Hazırlık",
+            "Kanat Bağlama",
+        ],
         "KASA_KAYIT": ["Sürme Hazırlık", "Orta Kayıt"],
         "KASA_KAYIT_KANAT": [
+            "Kaynak Köşe Temizleme",
             "Sürme Hazırlık",
             "Orta Kayıt",
             "Kanat Hazırlık",
             "Kanat Bağlama",
         ],
-        "KANAT": ["Sürme Hazırlık", "Kanat Hazırlık"],
-        # TODO: Operations for KAYIT should be added
+        "KANAT": ["Kaynak Köşe Temizleme", "Sürme Hazırlık", "Kanat Hazırlık"],
         "KAYIT": [
             "Kaynak Köşe Temizleme",
             "Orta Kayıt",

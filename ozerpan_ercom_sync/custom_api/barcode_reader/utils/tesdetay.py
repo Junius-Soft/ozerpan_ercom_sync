@@ -75,6 +75,27 @@ def get_tesdetay(
         # If multiple with same order_no and poz_no, return all options for client selection
         return candidates
 
+    def choose_preferred_tesdetay(candidates):
+        """Prefer IN PROGRESS first, then PENDING for this operation."""
+        if not candidates:
+            return None
+
+        def has_status(tesdetay_doc, statuses):
+            return any(
+                os["operation"] == operation and os["status"] in statuses
+                for os in tesdetay_doc.get("operation_states", [])
+            )
+
+        in_progress = [td for td in candidates if has_status(td, ["In Progress"])]
+        if in_progress:
+            return in_progress[0]
+
+        pending = [td for td in candidates if has_status(td, ["Pending"])]
+        if pending:
+            return pending[0]
+
+        return None
+
     # If order_no and poz_no are provided, filter by them first
     if order_no and poz_no:
         # Filter by order_no and poz_no, then by operation status
@@ -84,7 +105,6 @@ def get_tesdetay(
             if od.get("siparis_no") == order_no
             and od.get("poz_no") == poz_no
             and od.get("operation_states")
-            and od.get("name") == tesdetay_name
             and any(
                 os["operation"] == operation and os["status"] != "Completed"
                 for os in od.get("operation_states")
@@ -103,6 +123,10 @@ def get_tesdetay(
             ]
 
         if filtered_data:
+            preferred = choose_preferred_tesdetay(filtered_data)
+            if preferred:
+                return preferred
+
             # If multiple TesDetays with same order_no and poz_no, return all options for client selection
             result = select_tesdetay_from_same_group(filtered_data)
             return result if not isinstance(result, list) else result
@@ -114,7 +138,6 @@ def get_tesdetay(
             if od.get("siparis_no") == order_no
             and od.get("poz_no") == poz_no
             and od.get("operation_states")
-            and od.get("name") == tesdetay_name
             and any(
                 os["operation"] == operation and os["status"] == "Completed"
                 for os in od.get("operation_states")
@@ -185,6 +208,11 @@ def get_tesdetay(
         if key not in grouped:
             grouped[key] = []
         grouped[key].append(tesdetay)
+
+    # Try to pick a preferred TesDetay across all groups (IN PROGRESS > PENDING)
+    preferred = choose_preferred_tesdetay(all_data)
+    if preferred:
+        return preferred
 
     # If there's only one group, return the first item
     if len(grouped) == 1:
