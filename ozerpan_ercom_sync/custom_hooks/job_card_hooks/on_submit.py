@@ -29,7 +29,7 @@ def on_submit(doc, method):
             "parent": sales_order_name,
             "item_code": doc.production_item,
         },
-        ["rate"],
+        "rate",
     )
 
     production_item = frappe.get_doc("Item", doc.production_item)
