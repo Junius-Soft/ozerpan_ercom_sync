@@ -60,6 +60,92 @@ def collect():
 
 
 @frappe.whitelist()
+def debug_cam_liste_totals_for_order(order_no: str, operation: str = "Cam") -> Dict[str, Any]:
+    """
+    Console/debug helper used via:
+      bench --site <site> execute ozerpan_ercom_sync.custom_api.api.debug_cam_liste_totals_for_order --kwargs "{'order_no': 'S600199'}"
+
+    Prints DB CamListe planned/unplanned totals for the given order_no.
+    """
+
+    # Local import to keep api.py import graph stable.
+    from .cam_list_planning_compare import print_cam_db_planning_summary
+
+    return print_cam_db_planning_summary(order_no=order_no, operation=operation)
+
+
+@frappe.whitelist()
+def debug_cam_job_card_duplicates_for_order(
+    order_no: str,
+    operation: str = "Cam",
+    limit: int = 50,
+) -> Dict[str, Any]:
+    """
+    Checks if `CamListe` rows are duplicated in `CamListe Job Card` for the same
+    operation (planned join can SUM tm2 multiple times).
+
+    Use:
+      bench --site <site> execute ozerpan_ercom_sync.custom_api.api.debug_cam_job_card_duplicates_for_order --kwargs "{\"order_no\":\"S600199\",\"operation\":\"Cam\"}"
+    """
+    rows = frappe.db.sql(
+        """
+        SELECT
+            cl.name AS cam_name,
+            cl.poz_no,
+            cl.stok_kodu,
+            cl.sanal_adet,
+            cl.bm2,
+            cl.tm2,
+            COUNT(jc.name) AS job_card_row_count,
+            GROUP_CONCAT(DISTINCT jc.job_card_ref ORDER BY jc.job_card_ref SEPARATOR ',') AS job_card_refs,
+            GROUP_CONCAT(DISTINCT jc.status ORDER BY jc.status SEPARATOR ',') AS statuses
+        FROM `tabCamListe` cl
+        INNER JOIN `tabCamListe Job Card` jc
+            ON jc.parent = cl.name
+            AND jc.operation = %s
+        WHERE cl.order_no = %s
+        GROUP BY
+            cl.name,
+            cl.poz_no,
+            cl.stok_kodu,
+            cl.sanal_adet,
+            cl.bm2,
+            cl.tm2
+        HAVING COUNT(jc.name) > 1
+        ORDER BY job_card_row_count DESC
+        LIMIT %s
+        """,
+        (operation, order_no, limit),
+        as_dict=True,
+    )
+
+    total_dup_glasses = len(rows)
+
+    print("\n--- CamListe Job Card Duplicate Check ---")
+    print(f"order_no: {order_no}")
+    print(f"operation: {operation}")
+    print(f"duplicate CamListe rows (child rows > 1): {total_dup_glasses}")
+    if not rows:
+        print("No duplicates found for this order/operation.")
+    else:
+        print("First duplicates:")
+        for r in rows[:limit]:
+            print(
+                f"cam={r['cam_name']} poz={r['poz_no']} stok={r['stok_kodu']} "
+                f"sanal={r['sanal_adet']} bm2={r['bm2']} tm2={r['tm2']} "
+                f"job_card_rows={r['job_card_row_count']} refs={r.get('job_card_refs')}"
+            )
+    print("--- End Duplicate Check ---\n")
+
+    return {
+        "order_no": order_no,
+        "operation": operation,
+        "duplicate_glass_rows": total_dup_glasses,
+        "duplicates": rows,
+    }
+
+
+@frappe.whitelist()
 def revert_latest_barcode_operation(
     barcode: str,
     operation: str,
