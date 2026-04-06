@@ -23,9 +23,9 @@ def get_tesdetay(
     #
     # OLD (exact match - fails when spacing differs):
     # filters = {"barkod": barcode}
+    # WHERE td.barkod = %(barkod)s
     #
-    # NEW: remove all whitespace from incoming barcode and compare to DB after removing
-    # spaces. (DB tarafında pratikte sadece ' ' kullanılıyor.)
+    # NEW: gelen barkoddan tüm whitespace'i kaldır ve DB'de boşlukları yok sayarak eşleştir.
     barcode_nospace = "".join(str(barcode).split())
     filters = {"barkod_nospace": barcode_nospace}
     results = frappe.db.sql(
@@ -39,7 +39,6 @@ def get_tesdetay(
             os.idx
         FROM `tabTesDetay` td
         LEFT JOIN `tabTesDetay Operation Status` os ON td.name = os.parent
-        -- WHERE td.barkod = %(barkod)s  -- OLD: exact match (spacing-sensitive)
         WHERE REPLACE(td.barkod, ' ', '') = %(barkod_nospace)s
         ORDER BY td.name, os.idx
         """,
@@ -253,4 +252,3 @@ def update_operation_status(
             op_state.status = status.value
             tesdetay.save(ignore_permissions=True)
             break
-
